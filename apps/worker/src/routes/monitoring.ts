@@ -84,6 +84,30 @@ monitoring.get("/", async (c) => {
 		.bind(recentSince)
 		.first();
 
+	// Per-channel last 15 minutes
+	const recentChannelRows = await c.env.DB.prepare(
+		`SELECT
+			channel_id,
+			COUNT(*) AS total_requests,
+			COALESCE(SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END), 0) AS success_count,
+			COALESCE(AVG(latency_ms), 0) AS avg_latency_ms
+		FROM usage_logs
+		WHERE created_at >= ?
+		GROUP BY channel_id`,
+	)
+		.bind(recentSince)
+		.all();
+
+	const recentByChannel = new Map<string, { success_rate: number | null; avg_latency_ms: number }>();
+	for (const row of recentChannelRows.results ?? []) {
+		const total = Number(row.total_requests);
+		const success = Number(row.success_count);
+		recentByChannel.set(String(row.channel_id), {
+			success_rate: total > 0 ? Math.round((success / total) * 10000) / 100 : null,
+			avg_latency_ms: Math.round(Number(row.avg_latency_ms)),
+		});
+	}
+
 	const totalRequests = Number(globalRow?.total_requests ?? 0);
 	const totalSuccess = Number(globalRow?.total_success ?? 0);
 	const totalErrors = Number(globalRow?.total_errors ?? 0);
@@ -91,6 +115,8 @@ monitoring.get("/", async (c) => {
 	const channels = (channelRows.results ?? []).map((row) => {
 		const total = Number(row.total_requests);
 		const success = Number(row.success_count);
+		const chId = String(row.channel_id);
+		const recent = recentByChannel.get(chId);
 		return {
 			channel_id: row.channel_id,
 			channel_name: row.channel_name,
@@ -102,6 +128,8 @@ monitoring.get("/", async (c) => {
 			success_rate: total > 0 ? Math.round((success / total) * 10000) / 100 : null,
 			avg_latency_ms: Math.round(Number(row.avg_latency_ms)),
 			last_seen: row.last_seen ?? null,
+			recent_success_rate: recent?.success_rate ?? null,
+			recent_avg_latency_ms: recent?.avg_latency_ms ?? null,
 		};
 	});
 

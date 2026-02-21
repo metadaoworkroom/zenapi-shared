@@ -65,6 +65,8 @@ export type MonitoringChannelData = {
 	success_rate: number | null;
 	avg_latency_ms: number;
 	last_seen: string | null;
+	recent_success_rate: number | null;
+	recent_avg_latency_ms: number | null;
 };
 
 export type MonitoringDailyTrend = {
