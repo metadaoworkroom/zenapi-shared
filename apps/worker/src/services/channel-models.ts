@@ -1,14 +1,22 @@
 import { safeJsonParse } from "../utils/json";
 import type { ChannelRow } from "./channel-types";
 
+export type ModelPricing = {
+	id: string;
+	input_price?: number; // per million tokens, USD
+	output_price?: number; // per million tokens, USD
+};
+
 export type ModelEntry = {
 	id: string;
 	label: string;
 	channelId: string;
 	channelName: string;
+	inputPrice?: number;
+	outputPrice?: number;
 };
 
-type ModelLike = { id?: unknown };
+type ModelLike = { id?: unknown; input_price?: unknown; output_price?: unknown };
 
 function toModelId(item: unknown): string {
 	if (item && typeof item === "object" && "id" in item) {
@@ -45,11 +53,22 @@ export function normalizeModelsInput(input: unknown): string[] {
 	return [];
 }
 
-export function modelsToJson(models: string[]): string {
-	const normalized = models
-		.map((model) => String(model).trim())
-		.filter((model) => model.length > 0);
-	return JSON.stringify(normalized.map((id) => ({ id })));
+export function modelsToJson(models: string[] | ModelPricing[]): string {
+	if (models.length === 0) return "[]";
+	if (typeof models[0] === "string") {
+		const normalized = (models as string[])
+			.map((model) => String(model).trim())
+			.filter((model) => model.length > 0);
+		return JSON.stringify(normalized.map((id) => ({ id })));
+	}
+	return JSON.stringify(
+		(models as ModelPricing[]).map((m) => {
+			const entry: ModelPricing = { id: m.id };
+			if (m.input_price != null) entry.input_price = m.input_price;
+			if (m.output_price != null) entry.output_price = m.output_price;
+			return entry;
+		}),
+	);
 }
 
 export function extractModelIds(
@@ -72,12 +91,43 @@ export function extractModelIds(
 export function extractModels(
 	channel: Pick<ChannelRow, "id" | "name" | "models_json">,
 ): ModelEntry[] {
-	return extractModelIds(channel).map((id) => ({
-		id,
-		label: id,
+	const pricings = extractModelPricings(channel);
+	return pricings.map((p) => ({
+		id: p.id,
+		label: p.id,
 		channelId: channel.id,
 		channelName: channel.name,
+		inputPrice: p.input_price,
+		outputPrice: p.output_price,
 	}));
+}
+
+export function extractModelPricings(
+	channel: Pick<ChannelRow, "models_json">,
+): ModelPricing[] {
+	const raw = safeJsonParse<ModelLike[] | { data?: ModelLike[] } | null>(
+		channel.models_json,
+		null,
+	);
+	const models = Array.isArray(raw)
+		? raw
+		: Array.isArray(raw?.data)
+			? raw.data
+			: [];
+	return models
+		.map((model) => {
+			const id = toModelId(model);
+			if (!id) return null;
+			const entry: ModelPricing = { id };
+			if (model && typeof model === "object") {
+				const ip = (model as ModelLike).input_price;
+				const op = (model as ModelLike).output_price;
+				if (ip != null && Number(ip) > 0) entry.input_price = Number(ip);
+				if (op != null && Number(op) > 0) entry.output_price = Number(op);
+			}
+			return entry;
+		})
+		.filter((m): m is ModelPricing => m !== null);
 }
 
 export function collectUniqueModelIds(

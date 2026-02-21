@@ -101,20 +101,31 @@ export type MonitoringData = {
 	range: string;
 };
 
+export type SiteMode = "personal" | "service" | "shared";
+
 export type Settings = {
 	log_retention_days: number;
 	session_ttl_hours: number;
 	admin_password_set?: boolean;
+	site_mode: SiteMode;
 };
 
 export type ModelChannel = {
 	id: string;
 	name: string;
+	input_price: number | null;
+	output_price: number | null;
+	avg_latency_ms: number | null;
 };
 
 export type ModelItem = {
 	id: string;
 	channels: ModelChannel[];
+	total_requests: number;
+	total_tokens: number;
+	total_cost: number;
+	avg_latency_ms: number | null;
+	daily: { day: string; requests: number; tokens: number }[];
 };
 
 export type AdminData = {
@@ -155,4 +166,5 @@ export type SettingsForm = {
 	log_retention_days: string;
 	session_ttl_hours: string;
 	admin_password: string;
+	site_mode: SiteMode;
 };

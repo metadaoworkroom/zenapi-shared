@@ -3,10 +3,13 @@ import type { AppEnv } from "../env";
 import {
 	getRetentionDays,
 	getSessionTtlHours,
+	getSiteMode,
 	isAdminPasswordSet,
 	setAdminPasswordHash,
 	setRetentionDays,
 	setSessionTtlHours,
+	setSiteMode,
+	type SiteMode,
 } from "../services/settings";
 import { sha256Hex } from "../utils/crypto";
 import { jsonError } from "../utils/http";
@@ -20,10 +23,12 @@ settings.get("/", async (c) => {
 	const retention = await getRetentionDays(c.env.DB);
 	const sessionTtlHours = await getSessionTtlHours(c.env.DB);
 	const adminPasswordSet = await isAdminPasswordSet(c.env.DB);
+	const siteMode = await getSiteMode(c.env.DB);
 	return c.json({
 		log_retention_days: retention,
 		session_ttl_hours: sessionTtlHours,
 		admin_password_set: adminPasswordSet,
+		site_mode: siteMode,
 	});
 });
 
@@ -69,6 +74,20 @@ settings.put("/", async (c) => {
 	if (typeof body.admin_password === "string" && body.admin_password.trim()) {
 		const hash = await sha256Hex(body.admin_password.trim());
 		await setAdminPasswordHash(c.env.DB, hash);
+		touched = true;
+	}
+
+	if (body.site_mode !== undefined) {
+		const validModes: SiteMode[] = ["personal", "service", "shared"];
+		if (!validModes.includes(body.site_mode)) {
+			return jsonError(
+				c,
+				400,
+				"invalid_site_mode",
+				"invalid_site_mode",
+			);
+		}
+		await setSiteMode(c.env.DB, body.site_mode);
 		touched = true;
 	}
 

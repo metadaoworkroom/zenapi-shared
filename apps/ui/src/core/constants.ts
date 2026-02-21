@@ -36,4 +36,5 @@ export const initialSettingsForm: SettingsForm = {
 	log_retention_days: "30",
 	session_ttl_hours: "12",
 	admin_password: "",
+	site_mode: "personal",
 };

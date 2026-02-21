@@ -1,4 +1,4 @@
-import type { SettingsForm } from "../core/types";
+import type { SettingsForm, SiteMode } from "../core/types";
 
 type SettingsViewProps = {
 	settingsForm: SettingsForm;
@@ -7,15 +7,12 @@ type SettingsViewProps = {
 	onFormChange: (patch: Partial<SettingsForm>) => void;
 };
 
-/**
- * Renders the settings view.
- *
- * Args:
- *   props: Settings view props.
- *
- * Returns:
- *   Settings JSX element.
- */
+const siteModeOptions: { value: SiteMode; label: string; desc: string }[] = [
+	{ value: "personal", label: "自用模式", desc: "不公开模型信息" },
+	{ value: "service", label: "服务模式", desc: "公开模型及价格" },
+	{ value: "shared", label: "共享模式", desc: "公开模型，隐藏价格" },
+];
+
 export const SettingsView = ({
 	settingsForm,
 	adminPasswordSet,
@@ -101,6 +98,32 @@ export const SettingsView = ({
 				<p class="mt-1 text-xs text-stone-500">
 					密码状态：{adminPasswordSet ? "已设置" : "未设置"}
 				</p>
+			</div>
+			<div class="lg:col-span-2">
+				<label
+					class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500"
+					for="site-mode"
+				>
+					站点模式
+				</label>
+				<select
+					class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+					id="site-mode"
+					name="site_mode"
+					value={settingsForm.site_mode}
+					onChange={(event) => {
+						const target = event.currentTarget as HTMLSelectElement | null;
+						onFormChange({
+							site_mode: (target?.value ?? "personal") as SiteMode,
+						});
+					}}
+				>
+					{siteModeOptions.map((opt) => (
+						<option key={opt.value} value={opt.value}>
+							{opt.label} — {opt.desc}
+						</option>
+					))}
+				</select>
 			</div>
 			<div class="flex items-end lg:col-span-2">
 				<button

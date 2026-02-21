@@ -110,6 +110,34 @@ export async function isAdminPasswordSet(db: D1Database): Promise<boolean> {
 	return Boolean(hash);
 }
 
+const SITE_MODE_KEY = "site_mode";
+export type SiteMode = "personal" | "service" | "shared";
+const VALID_SITE_MODES: SiteMode[] = ["personal", "service", "shared"];
+
+/**
+ * Returns the site mode setting.
+ */
+export async function getSiteMode(db: D1Database): Promise<SiteMode> {
+	const value = await readSetting(db, SITE_MODE_KEY);
+	if (value && VALID_SITE_MODES.includes(value as SiteMode)) {
+		return value as SiteMode;
+	}
+	return "personal";
+}
+
+/**
+ * Updates the site mode setting.
+ */
+export async function setSiteMode(
+	db: D1Database,
+	mode: SiteMode,
+): Promise<void> {
+	if (!VALID_SITE_MODES.includes(mode)) {
+		return;
+	}
+	await upsertSetting(db, SITE_MODE_KEY, mode);
+}
+
 /**
  * Loads generic settings as a key/value map.
  */

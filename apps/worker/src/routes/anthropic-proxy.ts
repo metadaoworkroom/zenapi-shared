@@ -9,6 +9,7 @@ import {
 	openaiToAnthropicResponse,
 } from "../services/format-converter";
 import { recordUsage } from "../services/usage";
+import { calculateCost, getModelPrice } from "../services/pricing";
 import { jsonError } from "../utils/http";
 import { safeJsonParse } from "../utils/json";
 import { isRetryableStatus, sleep } from "../utils/retry";
@@ -242,6 +243,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 	// Record usage
 	const channelForUsage = selectedChannel ?? lastChannel;
 	if (channelForUsage && lastResponse) {
+		const price = getModelPrice(channelForUsage.models_json, effectiveModel ?? "");
 		const recordFn = async (
 			usage: NormalizedUsage | null,
 			firstTokenLatencyMs?: number | null,
@@ -251,6 +253,9 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 				promptTokens: 0,
 				completionTokens: 0,
 			};
+			const cost = price
+				? calculateCost(price, normalized.promptTokens, normalized.completionTokens)
+				: 0;
 			await recordUsage(c.env.DB, {
 				tokenId: tokenRecord.id,
 				channelId: channelForUsage.id,
@@ -259,7 +264,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 				totalTokens: normalized.totalTokens,
 				promptTokens: normalized.promptTokens,
 				completionTokens: normalized.completionTokens,
-				cost: 0,
+				cost,
 				latencyMs,
 				firstTokenLatencyMs:
 					firstTokenLatencyMs ?? (isStream ? null : latencyMs),

@@ -200,9 +200,11 @@ channels.post("/:id/test", async (c) => {
 		ok: boolean;
 		elapsed: number;
 		modelsJson?: string;
+		existingModelsJson?: string | null;
 	} = { ok: true, elapsed: result.elapsed };
 	if (hasModels && result.payload) {
 		updateData.modelsJson = JSON.stringify(result.payload);
+		updateData.existingModelsJson = channel.models_json ?? null;
 	}
 	await updateChannelTestResult(c.env.DB, id, updateData);
 

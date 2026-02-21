@@ -13,6 +13,7 @@ import newapiChannelRoutes from "./routes/newapiChannels";
 import newapiGroupRoutes from "./routes/newapiGroups";
 import newapiUserRoutes from "./routes/newapiUsers";
 import proxyRoutes from "./routes/proxy";
+import publicRoutes from "./routes/public";
 import settingsRoutes from "./routes/settings";
 import tokenRoutes from "./routes/tokens";
 import usageRoutes from "./routes/usage";
@@ -104,7 +105,8 @@ app.use("/api/*", async (c, next) => {
 		c.req.path === "/api/auth/login" ||
 		c.req.path.startsWith("/api/channel") ||
 		c.req.path.startsWith("/api/user") ||
-		c.req.path.startsWith("/api/group")
+		c.req.path.startsWith("/api/group") ||
+		c.req.path.startsWith("/api/public")
 	) {
 		return next();
 	}
@@ -121,6 +123,7 @@ app.route("/api/usage", usageRoutes);
 app.route("/api/dashboard", dashboardRoutes);
 app.route("/api/monitoring", monitoringRoutes);
 app.route("/api/settings", settingsRoutes);
+app.route("/api/public", publicRoutes);
 app.route("/api/channel", newapiChannelRoutes);
 app.route("/api/user", newapiUserRoutes);
 app.route("/api/group", newapiGroupRoutes);

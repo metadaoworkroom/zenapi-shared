@@ -18,6 +18,7 @@ import type {
 	Channel,
 	ChannelForm,
 	DashboardData,
+	ModelItem,
 	MonitoringData,
 	Settings,
 	SettingsForm,
@@ -134,10 +135,7 @@ const App = () => {
 
 	const loadModels = useCallback(async () => {
 		const result = await apiFetch<{
-			models: Array<{
-				id: string;
-				channels: Array<{ id: string; name: string }>;
-			}>;
+			models: ModelItem[];
 		}>("/api/models");
 		setData((prev) => ({ ...prev, models: result.models }));
 	}, [apiFetch]);
@@ -225,6 +223,7 @@ const App = () => {
 			log_retention_days: String(data.settings.log_retention_days ?? 30),
 			session_ttl_hours: String(data.settings.session_ttl_hours ?? 12),
 			admin_password: "",
+			site_mode: data.settings.site_mode ?? "personal",
 		});
 	}, [data.settings]);
 
@@ -326,9 +325,22 @@ const App = () => {
 						? parsed.data
 						: [];
 				modelsList = arr
-					.map((m: unknown) =>
-						typeof m === "string" ? m : ((m as { id?: string })?.id ?? ""),
-					)
+					.map((m: unknown) => {
+						if (typeof m === "string") return m;
+						const obj = m as {
+							id?: string;
+							input_price?: number;
+							output_price?: number;
+						};
+						const id = obj?.id ?? "";
+						if (!id) return "";
+						const ip = obj?.input_price;
+						const op = obj?.output_price;
+						if (ip != null || op != null) {
+							return `${id}|${ip ?? ""}|${op ?? ""}`;
+						}
+						return id;
+					})
 					.filter(Boolean)
 					.join("\n");
 			} catch {
@@ -371,7 +383,22 @@ const App = () => {
 					.split("\n")
 					.map((line) => line.trim())
 					.filter(Boolean)
-					.map((id) => ({ id }));
+					.map((line) => {
+						const parts = line.split("|");
+						const id = parts[0].trim();
+						const entry: {
+							id: string;
+							input_price?: number;
+							output_price?: number;
+						} = { id };
+						if (parts.length > 1 && parts[1].trim()) {
+							entry.input_price = Number(parts[1].trim());
+						}
+						if (parts.length > 2 && parts[2].trim()) {
+							entry.output_price = Number(parts[2].trim());
+						}
+						return entry;
+					});
 				const body = {
 					name: channelName,
 					base_url: channelForm.base_url.trim(),
@@ -449,6 +476,7 @@ const App = () => {
 			const payload: Record<string, number | string> = {
 				log_retention_days: retention,
 				session_ttl_hours: sessionTtlHours,
+				site_mode: settingsForm.site_mode,
 			};
 			const password = settingsForm.admin_password.trim();
 			if (password) {

@@ -2,7 +2,12 @@ import type { D1Database } from "@cloudflare/workers-types";
 import { safeJsonParse } from "../utils/json";
 import { nowIso } from "../utils/time";
 import { normalizeBaseUrl } from "../utils/url";
-import { modelsToJson, normalizeModelsInput } from "./channel-models";
+import {
+	type ModelPricing,
+	extractModelPricings,
+	modelsToJson,
+	normalizeModelsInput,
+} from "./channel-models";
 import type { ChannelApiFormat } from "./channel-types";
 
 export type ChannelTestResult = {
@@ -88,13 +93,55 @@ export async function updateChannelTestResult(
 		elapsed: number;
 		models?: string[];
 		modelsJson?: string;
+		existingModelsJson?: string | null;
 	},
 ): Promise<void> {
 	const now = Math.floor(Date.now() / 1000);
 	const status = result.ok ? "active" : "error";
-	const modelsJson =
-		result.modelsJson ??
-		(result.models ? modelsToJson(result.models) : undefined);
+
+	let modelsJson: string | undefined;
+	if (result.modelsJson) {
+		// When raw JSON is provided (from test payload), merge with existing prices
+		if (result.existingModelsJson) {
+			const existingPricings = extractModelPricings({
+				models_json: result.existingModelsJson,
+			});
+			const priceMap = new Map<
+				string,
+				{ input_price?: number; output_price?: number }
+			>();
+			for (const p of existingPricings) {
+				if (p.input_price != null || p.output_price != null) {
+					priceMap.set(p.id, {
+						input_price: p.input_price,
+						output_price: p.output_price,
+					});
+				}
+			}
+			const newModels = safeJsonParse<Array<{ id?: string }>>(
+				result.modelsJson,
+				[],
+			);
+			const merged: ModelPricing[] = (
+				Array.isArray(newModels) ? newModels : []
+			).map((m) => {
+				const mid = typeof m === "string" ? m : String(m?.id ?? "");
+				const existing = priceMap.get(mid);
+				const entry: ModelPricing = { id: mid };
+				if (existing?.input_price != null)
+					entry.input_price = existing.input_price;
+				if (existing?.output_price != null)
+					entry.output_price = existing.output_price;
+				return entry;
+			});
+			modelsJson = JSON.stringify(merged);
+		} else {
+			modelsJson = result.modelsJson;
+		}
+	} else if (result.models) {
+		modelsJson = modelsToJson(result.models);
+	}
+
 	const sql = modelsJson
 		? "UPDATE channels SET status = ?, models_json = ?, test_time = ?, response_time_ms = ?, updated_at = ? WHERE id = ?"
 		: "UPDATE channels SET status = ?, test_time = ?, response_time_ms = ?, updated_at = ? WHERE id = ?";
