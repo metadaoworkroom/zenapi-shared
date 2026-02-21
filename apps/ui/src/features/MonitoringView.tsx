@@ -55,8 +55,8 @@ const generateSlots = (range: string): string[] => {
 		now.setSeconds(0, 0);
 		for (let i = minutes - 1; i >= 0; i--) {
 			const d = new Date(now.getTime() - i * 60_000);
-			// YYYY-MM-DD HH:MM — matches SQL substr(created_at, 1, 16)
-			result.push(d.toISOString().slice(0, 16).replace("T", " "));
+			// YYYY-MM-DDTHH:MM — matches SQL substr(created_at, 1, 16) on ISO strings
+			result.push(d.toISOString().slice(0, 16));
 		}
 	} else {
 		const days = range === "30d" ? 30 : range === "7d" ? 7 : 1;
@@ -68,10 +68,14 @@ const generateSlots = (range: string): string[] => {
 	return result;
 };
 
-/** Format a slot key for display in labels/tooltips. */
+/** Format a slot key for display in labels/tooltips (converts UTC to local time). */
 const formatSlotLabel = (slot: string, range: string): string => {
 	if (range === "15m" || range === "1h") {
-		// "YYYY-MM-DD HH:MM" → show "HH:MM"
+		// slot is "YYYY-MM-DDTHH:MM" in UTC — convert to local time
+		const date = new Date(`${slot}:00.000Z`);
+		const hh = String(date.getHours()).padStart(2, "0");
+		const mm = String(date.getMinutes()).padStart(2, "0");
+		return `${hh}:${mm}`;
 		return slot.slice(11, 16);
 	}
 	return slot;
