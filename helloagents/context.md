@@ -3,7 +3,7 @@
 ## 1. 基本信息
 
 ```yaml
-名称: new-api-lite
+名称: api-worker
 描述: 基于 Cloudflare Workers + D1 的简易版 new-api
 类型: Web服务
 状态: 开发中
@@ -52,7 +52,7 @@
 ```yaml
 命名风格: camelCase
 文件命名: kebab-case
-目录组织: apps/worker + apps/admin
+目录组织: apps/worker + apps/ui
 ```
 
 ### 错误处理
@@ -88,3 +88,5 @@
 | 债务描述 | 优先级 | 来源 | 建议处理时机 |
 |---------|--------|------|-------------|
 | 暂无 | - | - | - |
+
+

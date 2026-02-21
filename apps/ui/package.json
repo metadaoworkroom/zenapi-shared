@@ -1,5 +1,5 @@
 {
-	"name": "new-api-lite-admin",
+	"name": "api-worker-ui",
 	"private": true,
 	"type": "module",
 	"scripts": {
@@ -18,3 +18,4 @@
 		"hono": "^4.11.9"
 	}
 }
+

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, master]
     paths:
-      - "apps/admin/**"
+      - "apps/ui/**"
       - "apps/worker/**"
   workflow_dispatch:
     inputs:
@@ -76,20 +76,20 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build admin
-        run: bun run --filter new-api-lite-admin build
+      - name: Build UI
+        run: bun run --filter api-worker-ui build
 
-      - name: Verify admin build
+      - name: Verify UI build
         run: |
-          if [ ! -d "apps/admin/dist" ]; then
-            echo "❌ 管理台构建失败：dist 目录不存在"
+          if [ ! -d "apps/ui/dist" ]; then
+            echo "❌ UI 构建失败：dist 目录不存在"
             exit 1
           fi
-          if [ ! -f "apps/admin/dist/index.html" ]; then
-            echo "❌ 管理台构建失败：index.html 不存在"
+          if [ ! -f "apps/ui/dist/index.html" ]; then
+            echo "❌ UI 构建失败：index.html 不存在"
             exit 1
           fi
-          echo "✅ 管理台构建产物已就绪"
+          echo "✅ UI 构建产物已就绪"
 
       - name: Disable wrangler telemetry
         run: bunx wrangler telemetry disable
@@ -160,3 +160,4 @@ jobs:
           else
             echo "❌ SPA Worker 部署失败！"
           fi
+

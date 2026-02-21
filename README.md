@@ -1,4 +1,4 @@
-# new-api-lite
+# api-worker
 
 简易版 new-api：Cloudflare Workers + D1 后端，Vite 静态管理台。
 管理台构建产物通过 Worker Static Assets 与 Worker 一起部署。
@@ -6,7 +6,7 @@
 ## 目录结构
 
 - `apps/worker` Cloudflare Worker (Hono)
-- `apps/admin` 管理台 (Vite)
+- `apps/ui` 管理台 (Vite)
 - `tests` 基础单元测试
 
 ## 本地开发
@@ -35,13 +35,13 @@ bun run dev:worker
 - 会话时长（小时，默认 12）
 - 管理员密码（首次登录自动初始化，可在系统设置中修改）
 
-### 3) Admin UI
+### 3) UI
 
 ```bash
-bun run dev:admin
+bun run dev:ui
 ```
 
-前端配置（`apps/admin/.env` 可选）：
+前端配置（`apps/ui/.env` 可选）：
 
 - `VITE_API_BASE` 管理 API 基址（默认同域）
 - `VITE_API_TARGET` 本地开发代理目标（默认 http://localhost:8787）
@@ -80,7 +80,7 @@ bun run fix
 本地开发使用本地数据库，云端部署使用 `--remote`：
 
 ```bash
-bun run --filter new-api-lite-worker db:migrate
+bun run --filter api-worker db:migrate
 ```
 
 云端（Cloudflare D1）请使用：
@@ -100,7 +100,7 @@ bunx wrangler d1 execute DB --command "DELETE FROM settings WHERE key = 'admin_p
 ## 云端部署（Cloudflare Workers + D1）
 
 说明：
-- 管理台静态资源来自 `apps/admin/dist`
+- 管理台静态资源来自 `apps/ui/dist`
 - `/api/*` 与 `/v1/*` 会优先走 Worker 逻辑
 - 部署顺序：先构建管理台，再部署 Worker
 - 下述 `wrangler deploy` 与 `--remote` 均为云端部署/迁移（非本地模拟）
@@ -126,7 +126,7 @@ bunx wrangler d1 create new_api_lite
 4. 构建管理台并上传静态资源：
 
 ```bash
-bun run --filter new-api-lite-admin build
+bun run --filter api-worker-ui build
 ```
 
 5. 执行远程迁移：
@@ -138,20 +138,20 @@ bunx wrangler d1 migrations apply DB --remote
 6. 部署 Worker：
 
 ```bash
-bun run --filter new-api-lite-worker deploy
+bun run --filter api-worker deploy
 ```
 
 ### 2) 更新前端（仅管理台变更）
 
 ```bash
-bun run --filter new-api-lite-admin build
-bun run --filter new-api-lite-worker deploy
+bun run --filter api-worker-ui build
+bun run --filter api-worker deploy
 ```
 
 ### 3) 更新后端（仅 Worker 变更）
 
 ```bash
-bun run --filter new-api-lite-worker deploy
+bun run --filter api-worker deploy
 ```
 
 ### 4) 数据库更新
@@ -173,3 +173,6 @@ bunx wrangler d1 migrations apply DB --remote
 
 确保 `apps/worker/wrangler.toml` 中已填写 `database_id`。
 可选：仓库级 Actions 变量 `SPA_DEPLOY` 可用于控制自动部署开关（未设置时默认启用）。
+
+
+

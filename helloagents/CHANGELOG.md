@@ -5,7 +5,7 @@
 ### 微调
 - **[worker]**: 补齐 admin 静态目录占位以通过 wrangler assets 检查
   - 类型: 微调（无方案包）
-  - 文件: apps/admin/dist/.gitkeep
+  - 文件: apps/ui/dist/.gitkeep
 - **[worker]**: 修正 wrangler assets 配置并为非 API 路由回退静态资源
   - 类型: 微调（无方案包）
   - 文件: apps/worker/wrangler.toml:15-19, apps/worker/src/index.ts:114-127
@@ -26,7 +26,7 @@
   - 文件: README.md
 - **[admin-ui]**: 渠道创建移除 ID 字段并校验名称唯一
   - 类型: 微调（无方案包）
-  - 文件: apps/admin/src/main.tsx:250-287, 664-829
+  - 文件: apps/ui/src/main.tsx:250-287, 664-829
 - **[worker]**: 全局记录收到的请求概要
   - 类型: 微调（无方案包）
   - 文件: apps/worker/src/index.ts
@@ -38,13 +38,13 @@
   - 文件: package.json
 - **[admin-ui]**: 本地开发增加 Vite proxy 解决前后端端口不一致
   - 类型: 微调（无方案包）
-  - 文件: apps/admin/vite.config.ts, README.md
+  - 文件: apps/ui/vite.config.ts, README.md
 - **[worker]**: 补充 wrangler.toml 示例配置占位
   - 类型: 微调（无方案包）
   - 文件: apps/worker/wrangler.toml
 - **[admin-ui]**: 渠道 ID 与日志渠道可见，操作反馈更清晰
   - 类型: 微调（无方案包）
-  - 文件: apps/admin/src/main.ts
+  - 文件: apps/ui/src/main.ts
 - **[worker]**: 使用日志关联渠道/令牌，base_url 自动纠正
   - 类型: 微调（无方案包）
   - 文件: apps/worker/src/routes/usage.ts, apps/worker/src/routes/channels.ts, apps/worker/src/routes/proxy.ts
@@ -53,7 +53,7 @@
   - 文件: apps/worker/src/routes/channels.ts, apps/worker/src/routes/tokens.ts, apps/worker/src/db/schema.sql, apps/worker/migrations/0002_add_token_plain.sql
 - **[admin-ui]**: 渠道 ID 可录入、令牌查看按钮
   - 类型: 微调（无方案包）
-  - 文件: apps/admin/src/main.ts
+  - 文件: apps/ui/src/main.ts
 - **[tests]**: 补充 URL 规范化单测
   - 类型: 微调（无方案包）
   - 文件: tests/worker/url.test.ts
@@ -72,6 +72,26 @@
 - **[proxy]**: 流式请求自动补 `stream_options.include_usage` 以获取 usage
   - 类型: 微调（无方案包）
   - 文件: apps/worker/src/routes/proxy.ts
+
+## [0.4.7] - 2026-02-21
+
+### 变更
+- **[tooling]**: UI 目录从 apps/admin 迁移为 apps/ui 并同步配置
+  - 方案: [202602211405_rename-admin-ui](archive/2026-02/202602211405_rename-admin-ui/)
+- **[ci]**: 部署流程改用 apps/ui 与 api-worker-ui
+  - 方案: [202602211405_rename-admin-ui](archive/2026-02/202602211405_rename-admin-ui/)
+- **[docs]**: 文档与知识库路径更新为 apps/ui
+  - 方案: [202602211405_rename-admin-ui](archive/2026-02/202602211405_rename-admin-ui/)
+
+## [0.4.6] - 2026-02-21
+
+### 变更
+- **[tooling]**: 统一工作区包名与脚本为 api-worker / api-worker-ui
+  - 方案: [202602161825_rename-api-worker-ui](archive/2026-02/202602161825_rename-api-worker-ui/)
+- **[worker]**: Worker 部署名称更新为 api-worker
+  - 方案: [202602161825_rename-api-worker-ui](archive/2026-02/202602161825_rename-api-worker-ui/)
+- **[docs]**: README 与知识库名称同步为 api-worker / api-worker-ui
+  - 方案: [202602161825_rename-api-worker-ui](archive/2026-02/202602161825_rename-api-worker-ui/)
 
 ## [0.4.5] - 2026-02-16
 
@@ -158,3 +178,5 @@
 - **[{模块名}]**: 回滚至 {版本/提交}
   - 原因: {回滚原因}
   - 方案: [{原方案包}](archive/{YYYY-MM}/{原方案包}/)
+
+

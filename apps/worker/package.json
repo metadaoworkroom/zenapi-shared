@@ -1,5 +1,5 @@
 {
-	"name": "new-api-lite-worker",
+	"name": "api-worker",
 	"private": true,
 	"type": "module",
 	"scripts": {
@@ -16,3 +16,4 @@
 		"wrangler": "^3.48.0"
 	}
 }
+

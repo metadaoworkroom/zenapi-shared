@@ -11,10 +11,11 @@
 		"typeRoots": [
 			"./node_modules",
 			"./node_modules/@types",
-			"./apps/admin/node_modules",
+			"./apps/ui/node_modules",
 			"./apps/worker/node_modules"
 		],
 		"types": ["vitest/globals", "vite/client", "@cloudflare/workers-types"],
 		"skipLibCheck": true
 	}
 }
+
