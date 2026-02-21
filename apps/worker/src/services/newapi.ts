@@ -35,6 +35,31 @@ export type NewApiChannel = {
 	key?: string;
 	created_time?: number;
 	updated_time?: number;
+	openai_organization?: string;
+	test_model?: string;
+	other?: string;
+	balance?: number;
+	balance_updated_time?: number;
+	used_quota?: number;
+	model_mapping?: string;
+	status_code_mapping?: string;
+	auto_ban?: number;
+	other_info?: string;
+	tag?: string;
+	setting?: string;
+	param_override?: string;
+	header_override?: string;
+	remark?: string;
+	channel_info?: ChannelInfo;
+	settings?: string;
+};
+
+export type ChannelInfo = {
+	is_multi_key: boolean;
+	multi_key_size: number;
+	multi_key_status_list: unknown[] | null;
+	multi_key_polling_index: number;
+	multi_key_mode: string;
 };
 
 export type ParsedChannelInput = {
@@ -54,6 +79,35 @@ export type ParsedChannelInput = {
 };
 
 type ModelLike = { id?: unknown };
+
+const DEFAULT_CHANNEL_INFO: ChannelInfo = {
+	is_multi_key: false,
+	multi_key_size: 0,
+	multi_key_status_list: null,
+	multi_key_polling_index: 0,
+	multi_key_mode: "",
+};
+
+const DEFAULT_NEWAPI_FIELDS = {
+	key: "",
+	openai_organization: "",
+	test_model: "",
+	other: "",
+	balance: 0,
+	balance_updated_time: 0,
+	used_quota: 0,
+	model_mapping: "",
+	status_code_mapping: "",
+	auto_ban: 1,
+	other_info: "",
+	tag: "",
+	setting: "",
+	param_override: "",
+	header_override: "",
+	remark: "",
+	channel_info: DEFAULT_CHANNEL_INFO,
+	settings: "",
+} as const;
 
 const KNOWN_KEYS = new Set([
 	"id",
@@ -76,6 +130,30 @@ const KNOWN_KEYS = new Set([
 	"groups",
 	"priority",
 ]);
+
+export function withNewApiDefaults<T extends Record<string, unknown>>(
+	channel: T,
+): T & typeof DEFAULT_NEWAPI_FIELDS {
+	const merged: Record<string, unknown> = { ...channel };
+	for (const [key, fallback] of Object.entries(DEFAULT_NEWAPI_FIELDS)) {
+		if (merged[key] === undefined || merged[key] === null) {
+			merged[key] = fallback;
+		}
+	}
+
+	const channelInfo = merged.channel_info;
+	if (
+		channelInfo &&
+		typeof channelInfo === "object" &&
+		!Array.isArray(channelInfo)
+	) {
+		merged.channel_info = { ...DEFAULT_CHANNEL_INFO, ...channelInfo };
+	} else {
+		merged.channel_info = { ...DEFAULT_CHANNEL_INFO };
+	}
+
+	return merged as T & typeof DEFAULT_NEWAPI_FIELDS;
+}
 
 function toModelId(item: unknown): string {
 	if (item && typeof item === "object" && "id" in item) {

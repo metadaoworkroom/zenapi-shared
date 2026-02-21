@@ -11,6 +11,7 @@ import {
 	normalizeChannelInput,
 	normalizeModelsInput,
 	toNewApiChannel,
+	withNewApiDefaults,
 } from "../services/newapi";
 import { generateToken } from "../utils/crypto";
 import { safeJsonParse } from "../utils/json";
@@ -220,7 +221,7 @@ newapi.get("/", async (c) => {
 
 	const items = (rows.results ?? []).map((row) => {
 		const { key: _key, ...rest } = toNewApiChannel(row);
-		return rest;
+		return withNewApiDefaults(rest);
 	});
 
 	return success(c, {
@@ -280,7 +281,7 @@ newapi.get("/search", async (c) => {
 	const offset = (page - 1) * pageSize;
 	const items = filtered.slice(offset, offset + pageSize).map((row) => {
 		const { key: _key, ...rest } = toNewApiChannel(row);
-		return rest;
+		return withNewApiDefaults(rest);
 	});
 
 	return success(c, {
@@ -658,7 +659,7 @@ newapi.get("/:id", async (c) => {
 					is_multi_key: false,
 					multi_key_mode: "random",
 				};
-	const output = toNewApiChannel(channel);
+	const output = withNewApiDefaults(toNewApiChannel(channel));
 	return success(c, {
 		...output,
 		model_mapping: modelMapping,
