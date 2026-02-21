@@ -11,11 +11,13 @@ import {
 import { recordUsage } from "../services/usage";
 import { jsonError } from "../utils/http";
 import { safeJsonParse } from "../utils/json";
+import { isRetryableStatus, sleep } from "../utils/retry";
 import { normalizeBaseUrl } from "../utils/url";
 import {
 	type NormalizedUsage,
 	normalizeUsage,
 	parseUsageFromHeaders,
+	parseUsageFromSse,
 } from "../utils/usage";
 import { channelSupportsModel, filterAllowedChannels } from "./proxy";
 
@@ -24,15 +26,6 @@ const anthropicProxy = new Hono<AppEnv>();
 type ExecutionContextLike = {
 	waitUntil: (promise: Promise<unknown>) => void;
 };
-
-function isRetryableStatus(status: number): boolean {
-	return status === 408 || status === 429 || status >= 500;
-}
-
-async function sleep(ms: number): Promise<void> {
-	if (ms <= 0) return;
-	await new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 /**
  * Anthropic Messages API compatible proxy handler.
@@ -280,7 +273,12 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 		if (isStream) {
 			const executionCtx = (c as { executionCtx?: ExecutionContextLike })
 				.executionCtx;
-			const task = recordFn(headerUsage, null).catch(() => undefined);
+			const task = parseUsageFromSse(lastResponse.clone())
+				.then((streamUsage) => {
+					const usage = headerUsage ?? streamUsage.usage;
+					return recordFn(usage, streamUsage.firstTokenLatencyMs);
+				})
+				.catch(() => undefined);
 			if (executionCtx?.waitUntil) {
 				executionCtx.waitUntil(task);
 			} else {

@@ -15,6 +15,7 @@ import { recordUsage } from "../services/usage";
 import { jsonError } from "../utils/http";
 import { safeJsonParse } from "../utils/json";
 import { extractReasoningEffort } from "../utils/reasoning";
+import { isRetryableStatus, sleep } from "../utils/retry";
 import { resolveChannelRoute } from "../services/channel-route";
 import { normalizeBaseUrl } from "../utils/url";
 import {
@@ -56,18 +57,12 @@ export function filterAllowedChannels(
 	return channels.filter((channel) => allowedSet.has(channel.id));
 }
 
-/**
- * Determines whether a response status should be retried.
- */
-function isRetryableStatus(status: number): boolean {
-	return status === 408 || status === 429 || status >= 500;
-}
+// Chat endpoint paths — only these are compatible with anthropic-format channels
+const CHAT_PATHS = ["/v1/chat/completions", "/v1/responses"];
 
-async function sleep(ms: number): Promise<void> {
-	if (ms <= 0) {
-		return;
-	}
-	await new Promise((resolve) => setTimeout(resolve, ms));
+function isChatPath(path: string): boolean {
+	const lower = path.toLowerCase();
+	return CHAT_PATHS.some((p) => lower.startsWith(p));
 }
 
 /**
@@ -236,8 +231,19 @@ proxy.all("/*", tokenAuth, async (c) => {
 		return jsonError(c, 503, "no_available_channels", "no_available_channels");
 	}
 
-	const ordered = createWeightedOrder(candidates);
 	const targetPath = c.req.path;
+
+	// Non-chat endpoints should not be routed to anthropic-format channels
+	if (!isChatPath(targetPath)) {
+		candidates = candidates.filter(
+			(ch) => (ch.api_format ?? "openai") !== "anthropic",
+		);
+		if (candidates.length === 0) {
+			return jsonError(c, 503, "no_available_channels", "no_available_channels");
+		}
+	}
+
+	const ordered = createWeightedOrder(candidates);
 	const fallbackSubPath =
 		targetPath.toLowerCase() === "/v1/responses" ? "/responses" : null;
 	const querySuffix = c.req.url.includes("?")
