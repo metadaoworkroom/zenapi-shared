@@ -497,7 +497,7 @@ const App = () => {
 				try {
 					await navigator.clipboard.writeText(result.token);
 					setNotice(`令牌已复制到剪贴板：${result.token}`);
-				} catch (clipboardError) {
+				} catch (_clipboardError) {
 					setNotice(`令牌: ${result.token}`);
 				}
 			} catch (error) {

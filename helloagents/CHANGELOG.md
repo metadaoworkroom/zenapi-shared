@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### 微调
+- **[admin-ui]**: 处理剪贴板异常时忽略未使用的错误变量
+  - 类型: 微调（无方案包）
+  - 文件: apps/ui/src/App.tsx:500
+- **[worker]**: 创建渠道时 metadata_json 为空则写入 null 以满足类型约束
+  - 类型: 微调（无方案包）
+  - 文件: apps/worker/src/routes/newapiChannels.ts:293
 - **[admin-ui]**: 令牌查看自动复制并提示
   - 类型: 微调（无方案包）
   - 文件: apps/ui/src/App.tsx:440-455

@@ -2,14 +2,6 @@ import { type Context, Hono } from "hono";
 import type { AppEnv } from "../env";
 import { newApiAuth } from "../middleware/newApiAuth";
 import {
-	mergeMetadata,
-	modelsToJson,
-	normalizeBaseUrlInput,
-	normalizeChannelInput,
-	toNewApiChannel,
-	withNewApiDefaults,
-} from "../services/newapi";
-import {
 	collectUniqueModelIds,
 	extractModelIds,
 } from "../services/channel-models";
@@ -28,6 +20,14 @@ import {
 	fetchChannelModels,
 	updateChannelTestResult,
 } from "../services/channel-testing";
+import {
+	mergeMetadata,
+	modelsToJson,
+	normalizeBaseUrlInput,
+	normalizeChannelInput,
+	toNewApiChannel,
+	withNewApiDefaults,
+} from "../services/newapi";
 import { generateToken } from "../utils/crypto";
 import { safeJsonParse } from "../utils/json";
 import { newApiFailure, newApiSuccess } from "../utils/newapi-response";
@@ -57,7 +57,6 @@ async function handleModelsList(c: Context<AppEnv>) {
 	const data = collectUniqueModelIds(channels).map((id) => ({ id, name: id }));
 	return newApiSuccess(c, data);
 }
-
 
 newapi.get("/", async (c) => {
 	const page = normalizePage(c.req.query("p") ?? c.req.query("page"), 1);
@@ -291,7 +290,7 @@ newapi.post("/", async (c) => {
 		type: parsed.type ?? 1,
 		group_name: parsed.group_name ?? null,
 		priority: parsed.priority ?? 0,
-		metadata_json: parsed.metadata_json,
+		metadata_json: parsed.metadata_json ?? null,
 		created_at: now,
 		updated_at: now,
 	});
@@ -489,4 +488,3 @@ newapi.get("/:id", async (c) => {
 });
 
 export default newapi;
-

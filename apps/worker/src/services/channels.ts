@@ -1,8 +1,8 @@
-import type { ChannelRecord } from "./channel-types";
 import { extractModels } from "./channel-models";
+import type { ChannelRecord } from "./channel-types";
 
-export type { ChannelRecord } from "./channel-types";
 export type { ModelEntry } from "./channel-models";
+export type { ChannelRecord } from "./channel-types";
 export { extractModels };
 
 /**

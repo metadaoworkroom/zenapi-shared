@@ -1,12 +1,12 @@
 import { safeJsonParse } from "../utils/json";
 import { normalizeBaseUrl } from "../utils/url";
-import type { ChannelRow } from "./channel-types";
 import {
 	extractModelIds,
 	modelsToJson,
 	normalizeModelsInput,
 } from "./channel-models";
 import { toInternalStatus, toNewApiStatus } from "./channel-status";
+import type { ChannelRow } from "./channel-types";
 
 export { extractModelIds, modelsToJson, normalizeModelsInput };
 export { toInternalStatus, toNewApiStatus };

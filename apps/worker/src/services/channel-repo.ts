@@ -67,8 +67,10 @@ export async function listChannels(
 	const statement = db.prepare(
 		`SELECT * FROM channels ${whereSql} ${orderSql} ${limitSql}`,
 	);
-	const rows = await bindIfNeeded(statement, [...bindings, ...limitBindings])
-		.all<ChannelRow>();
+	const rows = await bindIfNeeded(statement, [
+		...bindings,
+		...limitBindings,
+	]).all<ChannelRow>();
 	return rows.results ?? [];
 }
 
@@ -80,7 +82,9 @@ export async function countChannels(
 	const statement = db.prepare(
 		`SELECT COUNT(*) as count FROM channels ${whereSql}`,
 	);
-	const row = await bindIfNeeded(statement, bindings).first<{ count: number }>();
+	const row = await bindIfNeeded(statement, bindings).first<{
+		count: number;
+	}>();
 	return Number(row?.count ?? 0);
 }
 
@@ -220,9 +224,6 @@ export async function updateChannel(
 		.run();
 }
 
-export async function deleteChannel(
-	db: D1Database,
-	id: string,
-): Promise<void> {
+export async function deleteChannel(db: D1Database, id: string): Promise<void> {
 	await db.prepare("DELETE FROM channels WHERE id = ?").bind(id).run();
 }

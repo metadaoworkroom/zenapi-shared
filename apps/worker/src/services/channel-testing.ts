@@ -1,7 +1,7 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { nowIso } from "../utils/time";
 import { normalizeBaseUrl } from "../utils/url";
-import { normalizeModelsInput, modelsToJson } from "./channel-models";
+import { modelsToJson, normalizeModelsInput } from "./channel-models";
 
 export type ChannelTestResult = {
 	ok: boolean;
@@ -52,14 +52,17 @@ export async function updateChannelTestResult(
 	const now = Math.floor(Date.now() / 1000);
 	const status = result.ok ? "active" : "error";
 	const modelsJson =
-		result.modelsJson ?? (result.models ? modelsToJson(result.models) : undefined);
+		result.modelsJson ??
+		(result.models ? modelsToJson(result.models) : undefined);
 	const sql = modelsJson
 		? "UPDATE channels SET status = ?, models_json = ?, test_time = ?, response_time_ms = ?, updated_at = ? WHERE id = ?"
 		: "UPDATE channels SET status = ?, test_time = ?, response_time_ms = ?, updated_at = ? WHERE id = ?";
 
 	const stmt = db.prepare(sql);
 	if (modelsJson) {
-		await stmt.bind(status, modelsJson, now, result.elapsed, nowIso(), id).run();
+		await stmt
+			.bind(status, modelsJson, now, result.elapsed, nowIso(), id)
+			.run();
 	} else {
 		await stmt.bind(status, now, result.elapsed, nowIso(), id).run();
 	}
