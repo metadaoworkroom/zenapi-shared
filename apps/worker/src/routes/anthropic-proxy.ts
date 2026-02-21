@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { type TokenRecord, tokenAuth } from "../middleware/tokenAuth";
 import { type ChannelRecord, createWeightedOrder } from "../services/channels";
+import { resolveChannelRoute } from "../services/channel-route";
 import {
 	anthropicToOpenaiRequest,
 	createOpenaiToAnthropicStreamTransform,
@@ -58,11 +59,31 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 		.bind("active")
 		.all();
 	const activeChannels = (channelResult.results ?? []) as ChannelRecord[];
-	const allowedChannels = filterAllowedChannels(activeChannels, tokenRecord);
-	const modelChannels = allowedChannels.filter((channel) =>
-		channelSupportsModel(channel, model),
-	);
-	const candidates = modelChannels.length > 0 ? modelChannels : allowedChannels;
+
+	// Resolve channel/model routing syntax
+	const { targetChannel, actualModel } = resolveChannelRoute(model, activeChannels);
+	const effectiveModel = targetChannel ? actualModel : model;
+
+	// If channel routing matched, replace model in the request bodies
+	let effectiveRequestText = requestText;
+	if (targetChannel && parsedBody && actualModel !== null) {
+		parsedBody.model = actualModel;
+		effectiveRequestText = JSON.stringify(parsedBody);
+		if (openaiBody) {
+			(openaiBody as Record<string, unknown>).model = actualModel;
+		}
+	}
+
+	let candidates: ChannelRecord[];
+	if (targetChannel) {
+		candidates = [targetChannel];
+	} else {
+		const allowedChannels = filterAllowedChannels(activeChannels, tokenRecord);
+		const modelChannels = allowedChannels.filter((channel) =>
+			channelSupportsModel(channel, model),
+		);
+		candidates = modelChannels.length > 0 ? modelChannels : allowedChannels;
+	}
 
 	if (candidates.length === 0) {
 		return jsonError(c, 503, "no_available_channels", "no_available_channels");
@@ -102,7 +123,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 					response = await fetch(target, {
 						method: "POST",
 						headers,
-						body: requestText,
+						body: effectiveRequestText,
 					});
 
 					if (response.ok) {
@@ -120,7 +141,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 
 					const bodyToSend = openaiBody
 						? JSON.stringify(openaiBody)
-						: requestText;
+						: effectiveRequestText;
 
 					response = await fetch(target, {
 						method: "POST",
@@ -133,7 +154,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 						// Convert OpenAI response back to Anthropic format
 						if (isStream && response.body) {
 							const transform = createOpenaiToAnthropicStreamTransform(
-								model ?? "",
+								effectiveModel ?? "",
 							);
 							const transformed = response.body.pipeThrough(transform);
 							lastResponse = new Response(transformed, {
@@ -178,7 +199,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 					response = await fetch(target, {
 						method: "POST",
 						headers,
-						body: requestText,
+						body: effectiveRequestText,
 					});
 
 					if (response.ok) {
@@ -214,7 +235,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 	if (!lastResponse) {
 		await recordUsage(c.env.DB, {
 			tokenId: tokenRecord.id,
-			model,
+			model: effectiveModel,
 			requestPath,
 			totalTokens: 0,
 			latencyMs,
@@ -240,7 +261,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 			await recordUsage(c.env.DB, {
 				tokenId: tokenRecord.id,
 				channelId: channelForUsage.id,
-				model,
+				model: effectiveModel,
 				requestPath,
 				totalTokens: normalized.totalTokens,
 				promptTokens: normalized.promptTokens,

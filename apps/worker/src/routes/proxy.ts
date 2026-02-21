@@ -15,6 +15,7 @@ import { recordUsage } from "../services/usage";
 import { jsonError } from "../utils/http";
 import { safeJsonParse } from "../utils/json";
 import { extractReasoningEffort } from "../utils/reasoning";
+import { resolveChannelRoute } from "../services/channel-route";
 import { normalizeBaseUrl } from "../utils/url";
 import {
 	type NormalizedUsage,
@@ -209,11 +210,27 @@ proxy.all("/*", tokenAuth, async (c) => {
 		.bind("active")
 		.all();
 	const activeChannels = (channelResult.results ?? []) as ChannelRecord[];
-	const allowedChannels = filterAllowedChannels(activeChannels, tokenRecord);
-	const modelChannels = allowedChannels.filter((channel) =>
-		channelSupportsModel(channel, model),
-	);
-	const candidates = modelChannels.length > 0 ? modelChannels : allowedChannels;
+
+	// Resolve channel/model routing syntax
+	const { targetChannel, actualModel } = resolveChannelRoute(model, activeChannels);
+	const effectiveModel = targetChannel ? actualModel : model;
+
+	// If channel routing matched, replace model in the request body
+	if (targetChannel && parsedBody && actualModel !== null) {
+		parsedBody.model = actualModel;
+		requestText = JSON.stringify(parsedBody);
+	}
+
+	let candidates: ChannelRecord[];
+	if (targetChannel) {
+		candidates = [targetChannel];
+	} else {
+		const allowedChannels = filterAllowedChannels(activeChannels, tokenRecord);
+		const modelChannels = allowedChannels.filter((channel) =>
+			channelSupportsModel(channel, model),
+		);
+		candidates = modelChannels.length > 0 ? modelChannels : allowedChannels;
+	}
 
 	if (candidates.length === 0) {
 		return jsonError(c, 503, "no_available_channels", "no_available_channels");
@@ -315,7 +332,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 	if (!lastResponse) {
 		await recordUsage(c.env.DB, {
 			tokenId: tokenRecord.id,
-			model,
+			model: effectiveModel,
 			requestPath: lastRequestPath,
 			totalTokens: 0,
 			latencyMs,
@@ -343,7 +360,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 			await recordUsage(c.env.DB, {
 				tokenId: tokenRecord.id,
 				channelId: channelForUsage.id,
-				model,
+				model: effectiveModel,
 				requestPath: lastRequestPath,
 				totalTokens: normalized.totalTokens,
 				promptTokens: normalized.promptTokens,
@@ -368,7 +385,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 				completion_tokens: usage?.completionTokens ?? 0,
 				stream: isStream,
 				status: lastResponse.status,
-				model,
+				model: effectiveModel,
 				path: targetPath,
 			});
 		};
