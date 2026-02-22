@@ -137,7 +137,7 @@ export function extractModelPricings(
 export function extractSharedModelPricings(
 	channel: Pick<ChannelRow, "models_json">,
 ): ModelPricing[] {
-	return extractModelPricings(channel).filter((m) => m.shared === true);
+	return extractModelPricings(channel).filter((m) => m.shared !== false);
 }
 
 export function collectUniqueModelIds(

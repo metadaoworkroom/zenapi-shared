@@ -86,7 +86,7 @@ export const PublicApp = ({ onUserLogin, onNavigate }: PublicAppProps) => {
 						<button
 							type="button"
 							class="font-['Space_Grotesk'] text-lg font-semibold tracking-tight text-stone-900"
-							onClick={() => navigate("login")}
+							onClick={() => onNavigate("/")}
 						>
 							ZenApi
 						</button>
@@ -126,7 +126,7 @@ export const PublicApp = ({ onUserLogin, onNavigate }: PublicAppProps) => {
 					<button
 						type="button"
 						class="font-['Space_Grotesk'] text-lg font-semibold tracking-tight text-stone-900"
-						onClick={() => navigate("login")}
+						onClick={() => onNavigate("/")}
 					>
 						ZenApi
 					</button>

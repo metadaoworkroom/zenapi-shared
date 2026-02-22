@@ -26,6 +26,7 @@ const App = () => {
 		localStorage.getItem("user_token"),
 	);
 	const [userRecord, setUserRecord] = useState<User | null>(null);
+	const [userChecked, setUserChecked] = useState(false);
 	const [siteMode, setSiteMode] = useState<SiteMode | null>(null);
 	const [notice, setNotice] = useState("");
 	const [path, setPath] = useState(() =>
@@ -48,6 +49,7 @@ const App = () => {
 		} else {
 			localStorage.removeItem("user_token");
 			setUserRecord(null);
+			setUserChecked(true);
 		}
 	}, []);
 
@@ -63,17 +65,15 @@ const App = () => {
 	useEffect(() => {
 		if (!userToken) {
 			setUserRecord(null);
+			setUserChecked(true);
 			return;
 		}
+		setUserChecked(false);
 		const api = createApiFetch(userToken, () => updateUserToken(null));
 		api<{ user: User }>("/api/u/auth/me")
 			.then((result) => {
 				setUserRecord(result.user);
-				// If on login/register page, redirect to user panel
-				const current = normalizePath(window.location.pathname);
-				if (current === "/login" || current === "/register") {
-					navigateTo("/user");
-				}
+				setUserChecked(true);
 			})
 			.catch(() => {
 				updateUserToken(null);
@@ -127,27 +127,7 @@ const App = () => {
 		[updateAdminToken],
 	);
 
-	// Homepage redirect logic
-	if (path === "/" && siteMode !== null) {
-		if (siteMode === "personal") {
-			history.replaceState(null, "", "/admin");
-			setPath("/admin");
-		} else if (userToken && userRecord) {
-			history.replaceState(null, "", "/user");
-			setPath("/user");
-		} else {
-			history.replaceState(null, "", "/login");
-			setPath("/login");
-		}
-	}
-
-	// Personal mode: redirect all non-admin paths to admin
-	if (siteMode === "personal" && !path.startsWith("/admin")) {
-		history.replaceState(null, "", "/admin");
-		setPath("/admin");
-	}
-
-	// Admin routes
+	// Admin routes — always accessible, no need to wait for siteMode/userCheck
 	if (path.startsWith("/admin")) {
 		if (!adminToken) {
 			return (
@@ -163,17 +143,52 @@ const App = () => {
 		);
 	}
 
+	// Wait for siteMode before any routing decisions
+	if (siteMode === null) {
+		return null;
+	}
+
+	// Personal mode: redirect all non-admin paths to admin
+	if (siteMode === "personal") {
+		history.replaceState(null, "", "/admin");
+		setPath("/admin");
+		return null;
+	}
+
+	// Homepage redirect logic — only when on "/"
+	if (path === "/") {
+		if (userToken) {
+			// Token exists — wait for user check to complete
+			if (!userChecked) return null;
+			if (userRecord) {
+				history.replaceState(null, "", "/user");
+				setPath("/user");
+				return null;
+			}
+		}
+		// No token or user check failed
+		history.replaceState(null, "", "/login");
+		setPath("/login");
+		return null;
+	}
+
 	// User routes
 	if (path.startsWith("/user")) {
-		if (!userToken || !userRecord) {
-			// Redirect to login
-			if (path !== "/login") {
-				history.replaceState(null, "", "/login");
-				setPath("/login");
-			}
-			return (
-				<PublicApp onUserLogin={handleUserLogin} onNavigate={navigateTo} />
-			);
+		if (!userToken) {
+			// No token — redirect to login
+			history.replaceState(null, "", "/login");
+			setPath("/login");
+			return <PublicApp onUserLogin={handleUserLogin} onNavigate={navigateTo} />;
+		}
+		if (!userChecked) {
+			// Token exists but still verifying — show nothing to avoid flash
+			return null;
+		}
+		if (!userRecord) {
+			// Token was invalid — redirect to login
+			history.replaceState(null, "", "/login");
+			setPath("/login");
+			return <PublicApp onUserLogin={handleUserLogin} onNavigate={navigateTo} />;
 		}
 		return (
 			<div class="min-h-screen bg-linear-to-b from-white via-stone-50 to-stone-100 font-['IBM_Plex_Sans'] text-stone-900 antialiased">
@@ -188,6 +203,13 @@ const App = () => {
 	}
 
 	// Public routes (/login, /register)
+	// If user is already logged in, redirect to /user
+	if (userToken && userRecord && (path === "/login" || path === "/register")) {
+		history.replaceState(null, "", "/user");
+		setPath("/user");
+		return null;
+	}
+
 	return <PublicApp onUserLogin={handleUserLogin} onNavigate={navigateTo} />;
 };
 
