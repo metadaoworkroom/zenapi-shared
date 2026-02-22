@@ -20,7 +20,8 @@ export const UserLoginView = ({
 	};
 
 	return (
-		<div class="mx-auto mt-24 max-w-md rounded-2xl border border-stone-200 bg-white p-8 shadow-lg">
+		<div class="mx-auto flex min-h-[calc(100vh-57px)] items-center justify-center px-4 py-8">
+		<div class="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-8 shadow-lg">
 			<h1 class="mb-2 font-['Space_Grotesk'] text-2xl tracking-tight text-stone-900">
 				ZenApi
 			</h1>
@@ -88,6 +89,7 @@ export const UserLoginView = ({
 					{notice}
 				</div>
 			)}
+		</div>
 		</div>
 	);
 };
