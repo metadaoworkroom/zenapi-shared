@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS channels (
   response_time_ms INTEGER,
   api_format TEXT NOT NULL DEFAULT 'openai',
   custom_headers_json TEXT,
+  contributed_by TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -29,6 +30,7 @@ CREATE TABLE IF NOT EXISTS tokens (
   quota_used INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'active',
   allowed_channels TEXT,
+  user_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -65,3 +67,27 @@ CREATE TABLE IF NOT EXISTS admin_sessions (
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'user',
+  balance REAL NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS users_email ON users(email);
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS user_sessions_token ON user_sessions(token_hash);

@@ -12,6 +12,7 @@ export type TokenRecord = {
 	quota_used: number;
 	status: string;
 	allowed_channels: string | null;
+	user_id: string | null;
 };
 
 /**
@@ -25,7 +26,7 @@ export const tokenAuth = createMiddleware<AppEnv>(async (c, next) => {
 
 	const tokenHash = await sha256Hex(token);
 	const record = await c.env.DB.prepare(
-		"SELECT id, name, quota_total, quota_used, status, allowed_channels FROM tokens WHERE key_hash = ?",
+		"SELECT id, name, quota_total, quota_used, status, allowed_channels, user_id FROM tokens WHERE key_hash = ?",
 	)
 		.bind(tokenHash)
 		.first<TokenRecord>();

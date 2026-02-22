@@ -11,6 +11,8 @@ export type Variables = {
 	adminSessionId?: string;
 	newApiUserId?: string | null;
 	tokenRecord?: unknown;
+	userId?: string;
+	userRecord?: unknown;
 };
 
 export type AppEnv = {

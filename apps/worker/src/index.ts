@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import type { AppEnv } from "./env";
 import { adminAuth } from "./middleware/adminAuth";
+import adminUserRoutes from "./routes/admin-users";
 import anthropicProxyRoutes from "./routes/anthropic-proxy";
 import authRoutes from "./routes/auth";
 import channelRoutes from "./routes/channels";
@@ -16,6 +17,9 @@ import proxyRoutes from "./routes/proxy";
 import publicRoutes from "./routes/public";
 import settingsRoutes from "./routes/settings";
 import tokenRoutes from "./routes/tokens";
+import userApiRoutes from "./routes/user-api";
+import userAuthRoutes from "./routes/user-auth";
+import userChannelRoutes from "./routes/user-channels";
 import usageRoutes from "./routes/usage";
 
 const app = new Hono<AppEnv>({ strict: false });
@@ -106,7 +110,8 @@ app.use("/api/*", async (c, next) => {
 		c.req.path.startsWith("/api/channel") ||
 		c.req.path.startsWith("/api/user") ||
 		c.req.path.startsWith("/api/group") ||
-		c.req.path.startsWith("/api/public")
+		c.req.path.startsWith("/api/public") ||
+		c.req.path.startsWith("/api/u/")
 	) {
 		return next();
 	}
@@ -127,6 +132,10 @@ app.route("/api/public", publicRoutes);
 app.route("/api/channel", newapiChannelRoutes);
 app.route("/api/user", newapiUserRoutes);
 app.route("/api/group", newapiGroupRoutes);
+app.route("/api/users", adminUserRoutes);
+app.route("/api/u/auth", userAuthRoutes);
+app.route("/api/u", userApiRoutes);
+app.route("/api/u/channels", userChannelRoutes);
 
 app.route("/v1", proxyRoutes);
 app.route("/anthropic/v1", anthropicProxyRoutes);

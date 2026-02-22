@@ -1,4 +1,10 @@
-import type { AdminData, ChannelForm, SettingsForm, TabItem } from "./types";
+import type {
+	AdminData,
+	ChannelForm,
+	SettingsForm,
+	TabItem,
+	UserTabItem,
+} from "./types";
 
 export const apiBase = import.meta.env.VITE_API_BASE ?? "";
 
@@ -10,6 +16,15 @@ export const tabs: TabItem[] = [
 	{ id: "tokens", label: "令牌管理" },
 	{ id: "usage", label: "使用日志" },
 	{ id: "settings", label: "系统设置" },
+	{ id: "users", label: "用户管理" },
+];
+
+export const userTabs: UserTabItem[] = [
+	{ id: "dashboard", label: "仪表盘" },
+	{ id: "models", label: "模型广场" },
+	{ id: "tokens", label: "我的令牌" },
+	{ id: "usage", label: "使用日志" },
+	{ id: "channels", label: "贡献渠道" },
 ];
 
 export const initialData: AdminData = {

@@ -1,0 +1,177 @@
+import { useState } from "hono/jsx/dom";
+import type { Token } from "../core/types";
+import { formatDateTime } from "../core/utils";
+
+type UserTokensViewProps = {
+	tokens: Token[];
+	onCreate: (name: string) => void;
+	onDelete: (id: string) => void;
+	onReveal: (id: string) => void;
+};
+
+export const UserTokensView = ({
+	tokens,
+	onCreate,
+	onDelete,
+	onReveal,
+}: UserTokensViewProps) => {
+	const [showModal, setShowModal] = useState(false);
+	const [tokenName, setTokenName] = useState("");
+
+	const handleCreate = (e: Event) => {
+		e.preventDefault();
+		if (!tokenName.trim()) return;
+		onCreate(tokenName.trim());
+		setTokenName("");
+		setShowModal(false);
+	};
+
+	return (
+		<div class="rounded-2xl border border-stone-200 bg-white p-5 shadow-lg">
+			<div class="mb-4 flex items-center justify-between">
+				<div class="flex items-center gap-3">
+					<h3 class="font-['Space_Grotesk'] text-lg tracking-tight text-stone-900">
+						我的令牌
+					</h3>
+					<span class="rounded-full bg-stone-100 px-2.5 py-1 text-xs text-stone-500">
+						{tokens.length} 个
+					</span>
+				</div>
+				<button
+					class="h-10 rounded-lg bg-stone-900 px-4 text-sm font-semibold text-white transition-all hover:shadow-lg"
+					type="button"
+					onClick={() => setShowModal(true)}
+				>
+					创建令牌
+				</button>
+			</div>
+
+			{tokens.length === 0 ? (
+				<p class="py-8 text-center text-sm text-stone-400">
+					暂无令牌，点击上方按钮创建。
+				</p>
+			) : (
+				<div class="overflow-x-auto">
+					<table class="w-full text-left text-sm">
+						<thead>
+							<tr class="border-b border-stone-100 text-xs uppercase tracking-widest text-stone-400">
+								<th class="pb-2 pr-4 font-medium">名称</th>
+								<th class="pb-2 pr-4 font-medium">前缀</th>
+								<th class="pb-2 pr-4 font-medium">已用配额</th>
+								<th class="pb-2 pr-4 font-medium">状态</th>
+								<th class="pb-2 pr-4 font-medium">创建时间</th>
+								<th class="pb-2 font-medium">操作</th>
+							</tr>
+						</thead>
+						<tbody>
+							{tokens.map((token) => (
+								<tr class="border-b border-stone-50">
+									<td class="py-2.5 pr-4 font-medium text-stone-700">
+										{token.name}
+									</td>
+									<td class="py-2.5 pr-4 font-mono text-xs text-stone-500">
+										{token.key_prefix}...
+									</td>
+									<td class="py-2.5 pr-4 text-stone-600">
+										{token.quota_used}
+										{token.quota_total != null
+											? ` / ${token.quota_total}`
+											: " / 无限"}
+									</td>
+									<td class="py-2.5 pr-4">
+										<span
+											class={`rounded-full px-2 py-0.5 text-xs ${
+												token.status === "active"
+													? "bg-emerald-50 text-emerald-600"
+													: "bg-stone-100 text-stone-500"
+											}`}
+										>
+											{token.status === "active"
+												? "启用"
+												: "停用"}
+										</span>
+									</td>
+									<td class="py-2.5 pr-4 text-xs text-stone-500">
+										{formatDateTime(token.created_at)}
+									</td>
+									<td class="py-2.5">
+										<div class="flex gap-2">
+											<button
+												type="button"
+												class="text-xs text-amber-600 hover:text-amber-700"
+												onClick={() => onReveal(token.id)}
+											>
+												复制
+											</button>
+											<button
+												type="button"
+												class="text-xs text-red-500 hover:text-red-600"
+												onClick={() => onDelete(token.id)}
+											>
+												删除
+											</button>
+										</div>
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			)}
+
+			{/* Create modal */}
+			{showModal && (
+				<div class="fixed inset-0 z-50 flex items-center justify-center">
+					<button
+						type="button"
+						class="absolute inset-0 bg-stone-900/40"
+						onClick={() => setShowModal(false)}
+					/>
+					<div class="relative z-10 w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-xl">
+						<h3 class="mb-4 font-['Space_Grotesk'] text-lg tracking-tight text-stone-900">
+							创建令牌
+						</h3>
+						<form onSubmit={handleCreate}>
+							<div class="mb-4">
+								<label
+									class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500"
+									for="token-name"
+								>
+									令牌名称
+								</label>
+								<input
+									class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+									id="token-name"
+									type="text"
+									required
+									value={tokenName}
+									onInput={(e) =>
+										setTokenName(
+											(e.currentTarget as HTMLInputElement)
+												?.value ?? "",
+										)
+									}
+								/>
+							</div>
+							<div class="flex justify-end gap-3">
+								<button
+									type="button"
+									class="h-10 rounded-lg border border-stone-200 px-4 text-sm text-stone-500 hover:text-stone-900"
+									onClick={() => setShowModal(false)}
+								>
+									取消
+								</button>
+								<button
+									type="submit"
+									class="h-10 rounded-lg bg-stone-900 px-4 text-sm font-semibold text-white transition-all hover:shadow-lg"
+								>
+									创建
+								</button>
+							</div>
+						</form>
+					</div>
+				</div>
+			)}
+		</div>
+	);
+};

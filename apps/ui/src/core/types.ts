@@ -10,6 +10,7 @@ export type Channel = {
 	models_json?: string;
 	api_format: ChannelApiFormat;
 	custom_headers_json?: string | null;
+	contributed_by?: string | null;
 };
 
 export type Token = {
@@ -19,6 +20,7 @@ export type Token = {
 	quota_total: number | null;
 	quota_used: number;
 	status: string;
+	user_id?: string | null;
 	created_at?: string | null;
 	updated_at?: string | null;
 };
@@ -33,6 +35,7 @@ export type UsageLog = {
 	total_tokens: number | null;
 	prompt_tokens?: number | null;
 	completion_tokens?: number | null;
+	cost?: number | null;
 	latency_ms: number | null;
 	first_token_latency_ms?: number | null;
 	stream?: boolean | number | null;
@@ -145,7 +148,8 @@ export type TabId =
 	| "models"
 	| "tokens"
 	| "usage"
-	| "settings";
+	| "settings"
+	| "users";
 
 export type TabItem = {
 	id: TabId;
@@ -167,4 +171,46 @@ export type SettingsForm = {
 	session_ttl_hours: string;
 	admin_password: string;
 	site_mode: SiteMode;
+};
+
+// User types
+export type User = {
+	id: string;
+	email: string;
+	name: string;
+	role: string;
+	balance: number;
+	status: string;
+	created_at: string;
+	updated_at: string;
+};
+
+export type UserDashboardData = {
+	balance: number;
+	total_requests: number;
+	total_tokens: number;
+	total_cost: number;
+	recent_usage: Array<{ day: string; requests: number; cost: number }>;
+};
+
+export type UserTabId =
+	| "dashboard"
+	| "models"
+	| "tokens"
+	| "usage"
+	| "channels";
+
+export type UserTabItem = {
+	id: UserTabId;
+	label: string;
+};
+
+export type PublicModelItem = {
+	id: string;
+	channels: Array<{
+		id: string;
+		name: string;
+		input_price: number | null;
+		output_price: number | null;
+	}>;
 };

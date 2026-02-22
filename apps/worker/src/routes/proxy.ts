@@ -383,6 +383,15 @@ proxy.all("/*", tokenAuth, async (c) => {
 				reasoningEffort,
 				status: lastResponse.ok ? "ok" : "error",
 			});
+			// Deduct user balance if token is associated with a user
+			if (cost > 0 && tokenRecord.user_id) {
+				const now = new Date().toISOString();
+				await c.env.DB.prepare(
+					"UPDATE users SET balance = balance - ?, updated_at = ? WHERE id = ?",
+				)
+					.bind(cost, now, tokenRecord.user_id)
+					.run();
+			}
 		};
 		const logUsage = (
 			label: string,
