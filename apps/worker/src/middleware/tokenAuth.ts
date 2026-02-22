@@ -1,6 +1,7 @@
 import { createMiddleware } from "hono/factory";
 import type { AppEnv } from "../env";
 import { canConsumeQuota, normalizeQuota } from "../services/quota";
+import { getSiteMode } from "../services/settings";
 import { sha256Hex } from "../utils/crypto";
 import { jsonError } from "../utils/http";
 import { getBearerToken } from "../utils/request";
@@ -50,6 +51,26 @@ export const tokenAuth = createMiddleware<AppEnv>(async (c, next) => {
 	);
 	if (!canConsumeQuota(normalized.quotaTotal, normalized.quotaUsed, 1)) {
 		return jsonError(c, 402, "quota_exceeded", "quota_exceeded");
+	}
+
+	// User-associated tokens: check site mode, user status, and balance
+	if (record.user_id) {
+		const siteMode = await getSiteMode(c.env.DB);
+		// Personal mode: user tokens are not allowed
+		if (siteMode === "personal") {
+			return jsonError(c, 403, "token_disabled", "token_disabled");
+		}
+		const user = await c.env.DB.prepare(
+			"SELECT balance, status FROM users WHERE id = ?",
+		)
+			.bind(record.user_id)
+			.first<{ balance: number; status: string }>();
+		if (!user || user.status !== "active") {
+			return jsonError(c, 403, "user_disabled", "user_disabled");
+		}
+		if (user.balance <= 0) {
+			return jsonError(c, 402, "insufficient_balance", "insufficient_balance");
+		}
 	}
 
 	c.set("tokenRecord", {

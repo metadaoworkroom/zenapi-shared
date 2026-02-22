@@ -271,7 +271,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 				stream: isStream,
 				status: lastResponse.ok ? "ok" : "error",
 			});
-			// Deduct user balance if token is associated with a user
+			// Deduct user balance
 			if (cost > 0 && tokenRecord.user_id) {
 				const now = new Date().toISOString();
 				await c.env.DB.prepare(

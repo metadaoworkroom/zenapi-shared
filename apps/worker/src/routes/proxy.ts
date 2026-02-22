@@ -383,7 +383,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 				reasoningEffort,
 				status: lastResponse.ok ? "ok" : "error",
 			});
-			// Deduct user balance if token is associated with a user
+			// Deduct user balance
 			if (cost > 0 && tokenRecord.user_id) {
 				const now = new Date().toISOString();
 				await c.env.DB.prepare(
