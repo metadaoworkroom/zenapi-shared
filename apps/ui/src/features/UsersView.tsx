@@ -151,7 +151,7 @@ export const UsersView = ({
 										{formatDateTime(user.created_at)}
 									</td>
 									<td class="py-2.5">
-										<div class="flex gap-2">
+										<div class="flex gap-2 whitespace-nowrap">
 											<button
 												type="button"
 												class="text-xs text-amber-600 hover:text-amber-700"

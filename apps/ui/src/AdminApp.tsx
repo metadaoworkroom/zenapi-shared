@@ -84,6 +84,7 @@ export const AdminApp = ({ token, updateToken }: AdminAppProps) => {
 		useState<SettingsForm>(initialSettingsForm);
 	const [channelPage, setChannelPage] = useState(1);
 	const [channelPageSize, setChannelPageSize] = useState(10);
+	const [channelSearch, setChannelSearch] = useState("");
 	const [tokenPage, setTokenPage] = useState(1);
 	const [tokenPageSize, setTokenPageSize] = useState(10);
 	const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
@@ -224,6 +225,10 @@ export const AdminApp = ({ token, updateToken }: AdminAppProps) => {
 	);
 	const handleChannelPageSizeChange = useCallback((next: number) => {
 		setChannelPageSize(next);
+		setChannelPage(1);
+	}, []);
+	const handleChannelSearchChange = useCallback((value: string) => {
+		setChannelSearch(value);
 		setChannelPage(1);
 	}, []);
 	const handleTokenPageChange = useCallback(
@@ -628,15 +633,24 @@ export const AdminApp = ({ token, updateToken }: AdminAppProps) => {
 		[apiFetch, loadUsers],
 	);
 
-	const channelTotal = data.channels.length;
+	const filteredChannels = useMemo(() => {
+		if (!channelSearch) return data.channels;
+		const lower = channelSearch.toLowerCase();
+		return data.channels.filter(
+			(ch) =>
+				ch.name.toLowerCase().includes(lower) ||
+				ch.base_url.toLowerCase().includes(lower),
+		);
+	}, [data.channels, channelSearch]);
+	const channelTotal = filteredChannels.length;
 	const channelTotalPages = useMemo(
 		() => Math.max(1, Math.ceil(channelTotal / channelPageSize)),
 		[channelTotal, channelPageSize],
 	);
 	const pagedChannels = useMemo(() => {
 		const start = (channelPage - 1) * channelPageSize;
-		return data.channels.slice(start, start + channelPageSize);
-	}, [channelPage, channelPageSize, data.channels]);
+		return filteredChannels.slice(start, start + channelPageSize);
+	}, [channelPage, channelPageSize, filteredChannels]);
 	const tokenTotal = data.tokens.length;
 	const tokenTotalPages = useMemo(
 		() => Math.max(1, Math.ceil(tokenTotal / tokenPageSize)),
@@ -689,6 +703,7 @@ export const AdminApp = ({ token, updateToken }: AdminAppProps) => {
 					channelTotal={channelTotal}
 					channelTotalPages={channelTotalPages}
 					pagedChannels={pagedChannels}
+					channelSearch={channelSearch}
 					editingChannel={editingChannel}
 					isChannelModalOpen={isChannelModalOpen}
 					siteMode={data.settings?.site_mode ?? "personal"}
@@ -701,6 +716,7 @@ export const AdminApp = ({ token, updateToken }: AdminAppProps) => {
 					onDelete={handleChannelDelete}
 					onPageChange={handleChannelPageChange}
 					onPageSizeChange={handleChannelPageSizeChange}
+					onSearchChange={handleChannelSearchChange}
 					onFormChange={handleChannelFormChange}
 				/>
 			);

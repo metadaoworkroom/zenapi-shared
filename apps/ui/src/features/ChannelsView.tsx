@@ -239,6 +239,7 @@ type ChannelsViewProps = {
 	channelTotal: number;
 	channelTotalPages: number;
 	pagedChannels: Channel[];
+	channelSearch: string;
 	editingChannel: Channel | null;
 	isChannelModalOpen: boolean;
 	siteMode: SiteMode;
@@ -251,6 +252,7 @@ type ChannelsViewProps = {
 	onDelete: (id: string) => void;
 	onPageChange: (next: number) => void;
 	onPageSizeChange: (next: number) => void;
+	onSearchChange: (value: string) => void;
 	onFormChange: (patch: Partial<ChannelForm>) => void;
 };
 
@@ -284,6 +286,7 @@ export const ChannelsView = ({
 	channelTotal,
 	channelTotalPages,
 	pagedChannels,
+	channelSearch,
 	editingChannel,
 	isChannelModalOpen,
 	siteMode,
@@ -296,6 +299,7 @@ export const ChannelsView = ({
 	onDelete,
 	onPageChange,
 	onPageSizeChange,
+	onSearchChange,
 	onFormChange,
 }: ChannelsViewProps) => {
 	const isEditing = Boolean(editingChannel);
@@ -311,6 +315,17 @@ export const ChannelsView = ({
 						<p class="text-xs text-stone-500">状态、权重与操作入口集中展示。</p>
 					</div>
 					<div class="flex flex-wrap items-center gap-2">
+						<input
+							class="h-10 md:h-9 w-full rounded-full border border-stone-200 bg-white px-4 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:w-52"
+							type="text"
+							placeholder="搜索渠道..."
+							value={channelSearch}
+							onInput={(e) =>
+								onSearchChange(
+									(e.currentTarget as HTMLInputElement).value,
+								)
+							}
+						/>
 						<button
 							class="h-10 md:h-9 rounded-full bg-stone-900 px-4 text-xs font-semibold text-white transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
 							type="button"
