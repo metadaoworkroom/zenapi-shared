@@ -12,7 +12,8 @@ const publicRoutes = new Hono<AppEnv>();
  */
 publicRoutes.get("/site-info", async (c) => {
 	const siteMode = await getSiteMode(c.env.DB);
-	return c.json({ site_mode: siteMode });
+	const linuxdoEnabled = Boolean(c.env.LINUXDO_CLIENT_ID);
+	return c.json({ site_mode: siteMode, linuxdo_enabled: linuxdoEnabled });
 });
 
 /**

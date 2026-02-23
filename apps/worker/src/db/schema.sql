@@ -76,11 +76,13 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL DEFAULT 'user',
   balance REAL NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'active',
+  linuxdo_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS users_email ON users(email);
+CREATE UNIQUE INDEX IF NOT EXISTS users_linuxdo_id ON users(linuxdo_id);
 
 CREATE TABLE IF NOT EXISTS user_sessions (
   id TEXT PRIMARY KEY,

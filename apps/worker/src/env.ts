@@ -5,6 +5,8 @@ export type Bindings = {
 	CORS_ORIGIN?: string;
 	PROXY_RETRY_ROUNDS?: string;
 	PROXY_RETRY_DELAY_MS?: string;
+	LINUXDO_CLIENT_ID?: string;
+	LINUXDO_CLIENT_SECRET?: string;
 };
 
 export type Variables = {

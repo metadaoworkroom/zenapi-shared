@@ -301,6 +301,19 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: bunx wrangler deploy --config apps/worker/wrangler.toml
 
+      - name: Set Linux DO OAuth secrets
+        if: steps.check-db.outputs.db_exists != 'true' && (needs.check-config.outputs.deploy_worker == 'true' || needs.check-config.outputs.deploy_ui == 'true')
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "${{ secrets.LINUXDO_CLIENT_ID }}" ]; then
+            echo "${{ secrets.LINUXDO_CLIENT_ID }}" | bunx wrangler secret put LINUXDO_CLIENT_ID --config apps/worker/wrangler.toml
+          fi
+          if [ -n "${{ secrets.LINUXDO_CLIENT_SECRET }}" ]; then
+            echo "${{ secrets.LINUXDO_CLIENT_SECRET }}" | bunx wrangler secret put LINUXDO_CLIENT_SECRET --config apps/worker/wrangler.toml
+          fi
+
   deploy-spa:
     needs: check-config
     if: needs.check-config.outputs.should_deploy == 'true' && needs.check-config.outputs.deploy_action != 'init'
@@ -407,6 +420,19 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: bunx wrangler deploy --config apps/worker/wrangler.toml
+
+      - name: Set Linux DO OAuth secrets
+        if: needs.check-config.outputs.deploy_worker == 'true' || needs.check-config.outputs.deploy_ui == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "${{ secrets.LINUXDO_CLIENT_ID }}" ]; then
+            echo "${{ secrets.LINUXDO_CLIENT_ID }}" | bunx wrangler secret put LINUXDO_CLIENT_ID --config apps/worker/wrangler.toml
+          fi
+          if [ -n "${{ secrets.LINUXDO_CLIENT_SECRET }}" ]; then
+            echo "${{ secrets.LINUXDO_CLIENT_SECRET }}" | bunx wrangler secret put LINUXDO_CLIENT_SECRET --config apps/worker/wrangler.toml
+          fi
 
       - name: Display Success Information
         if: steps.check-deploy-button.outputs.is_deploy_button == 'true' && success()
