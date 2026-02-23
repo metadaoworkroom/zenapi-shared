@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS model_aliases (
   model_id TEXT NOT NULL,
   alias TEXT NOT NULL,
   is_primary INTEGER NOT NULL DEFAULT 0,
+  alias_only INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

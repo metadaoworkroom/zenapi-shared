@@ -6,6 +6,7 @@ type AliasRow = {
 	model_id: string;
 	alias: string;
 	is_primary: number;
+	alias_only: number;
 	created_at: string;
 	updated_at: string;
 };
@@ -72,20 +73,32 @@ export async function loadAliasMap(
 }
 
 /**
+ * Returns the set of model_ids that are alias-only (original name hidden).
+ */
+export async function loadAliasOnlySet(
+	db: D1Database,
+): Promise<Set<string>> {
+	const result = await db
+		.prepare("SELECT DISTINCT model_id FROM model_aliases WHERE alias_only = 1")
+		.all<{ model_id: string }>();
+	return new Set((result.results ?? []).map((r) => r.model_id));
+}
+
+/**
  * Returns all aliases grouped by model_id.
  */
 export async function listAllAliases(
 	db: D1Database,
-): Promise<Map<string, Array<{ alias: string; is_primary: boolean }>>> {
+): Promise<Map<string, Array<{ alias: string; is_primary: boolean; alias_only: boolean }>>> {
 	const result = await db
 		.prepare(
-			"SELECT model_id, alias, is_primary FROM model_aliases ORDER BY model_id, is_primary DESC, alias",
+			"SELECT model_id, alias, is_primary, alias_only FROM model_aliases ORDER BY model_id, is_primary DESC, alias",
 		)
 		.all<AliasRow>();
-	const map = new Map<string, Array<{ alias: string; is_primary: boolean }>>();
+	const map = new Map<string, Array<{ alias: string; is_primary: boolean; alias_only: boolean }>>();
 	for (const row of result.results ?? []) {
 		const existing = map.get(row.model_id) ?? [];
-		existing.push({ alias: row.alias, is_primary: row.is_primary === 1 });
+		existing.push({ alias: row.alias, is_primary: row.is_primary === 1, alias_only: row.alias_only === 1 });
 		map.set(row.model_id, existing);
 	}
 	return map;
@@ -97,16 +110,17 @@ export async function listAllAliases(
 export async function getAliasesForModel(
 	db: D1Database,
 	modelId: string,
-): Promise<Array<{ alias: string; is_primary: boolean }>> {
+): Promise<Array<{ alias: string; is_primary: boolean; alias_only: boolean }>> {
 	const result = await db
 		.prepare(
-			"SELECT alias, is_primary FROM model_aliases WHERE model_id = ? ORDER BY is_primary DESC, alias",
+			"SELECT alias, is_primary, alias_only FROM model_aliases WHERE model_id = ? ORDER BY is_primary DESC, alias",
 		)
 		.bind(modelId)
-		.all<{ alias: string; is_primary: number }>();
+		.all<{ alias: string; is_primary: number; alias_only: number }>();
 	return (result.results ?? []).map((row) => ({
 		alias: row.alias,
 		is_primary: row.is_primary === 1,
+		alias_only: row.alias_only === 1,
 	}));
 }
 
@@ -118,6 +132,7 @@ export async function saveAliasesForModel(
 	db: D1Database,
 	modelId: string,
 	aliases: AliasInput[],
+	aliasOnly = false,
 ): Promise<void> {
 	const now = nowIso();
 	const deleteStmt = db
@@ -127,13 +142,14 @@ export async function saveAliasesForModel(
 	const insertStmts = aliases.map((a) =>
 		db
 			.prepare(
-				"INSERT INTO model_aliases (id, model_id, alias, is_primary, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+				"INSERT INTO model_aliases (id, model_id, alias, is_primary, alias_only, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
 			)
 			.bind(
 				crypto.randomUUID(),
 				modelId,
 				a.alias,
 				a.is_primary ? 1 : 0,
+				aliasOnly ? 1 : 0,
 				now,
 				now,
 			),

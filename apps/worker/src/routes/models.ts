@@ -21,6 +21,7 @@ type ModelResult = {
 	id: string;
 	display_name: string;
 	aliases: Array<{ alias: string; is_primary: boolean }>;
+	alias_only: boolean;
 	channels: ChannelInfo[];
 	total_requests: number;
 	total_tokens: number;
@@ -152,11 +153,13 @@ models.get("/", async (c) => {
 		const aliases = aliasMap.get(modelId) ?? [];
 		const primary = aliases.find((a) => a.is_primary);
 		const displayName = primary ? primary.alias : modelId;
+		const aliasOnly = aliases.length > 0 && aliases[0].alias_only;
 
 		results.push({
 			id: modelId,
 			display_name: displayName,
-			aliases,
+			aliases: aliases.map((a) => ({ alias: a.alias, is_primary: a.is_primary })),
+			alias_only: aliasOnly,
 			channels: enrichedChannels,
 			total_requests: usage?.total_requests ?? 0,
 			total_tokens: usage?.total_tokens ?? 0,

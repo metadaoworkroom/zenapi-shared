@@ -3,7 +3,7 @@ import type { AppEnv } from "../env";
 import { type TokenRecord, tokenAuth } from "../middleware/tokenAuth";
 import { type ChannelRecord, createWeightedOrder } from "../services/channels";
 import { resolveChannelRoute } from "../services/channel-route";
-import { resolveModelNames } from "../services/model-aliases";
+import { resolveModelNames, loadAliasOnlySet } from "../services/model-aliases";
 import {
 	anthropicToOpenaiRequest,
 	createOpenaiToAnthropicStreamTransform,
@@ -49,6 +49,14 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 
 	// Resolve model aliases — returns all model IDs this name can route to
 	const resolvedNames = model ? await resolveModelNames(c.env.DB, model) : [];
+
+	// Block requests using the original name of alias-only models
+	if (model && resolvedNames.length === 1) {
+		const aliasOnlySet = await loadAliasOnlySet(c.env.DB);
+		if (aliasOnlySet.has(model)) {
+			return jsonError(c, 404, "model_not_found", `The model '${model}' does not exist or is not available.`);
+		}
+	}
 
 	// Convert Anthropic request -> OpenAI format for internal use
 	const openaiBody = parsedBody ? anthropicToOpenaiRequest(parsedBody) : null;

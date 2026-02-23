@@ -25,7 +25,7 @@ import { extractReasoningEffort } from "../utils/reasoning";
 import { parseApiKeys, shuffleArray } from "../utils/keys";
 import { isRetryableStatus, sleep } from "../utils/retry";
 import { resolveChannelRoute } from "../services/channel-route";
-import { resolveModelNames, loadAliasMap } from "../services/model-aliases";
+import { resolveModelNames, loadAliasMap, loadAliasOnlySet } from "../services/model-aliases";
 import { cfSafeUrl, normalizeBaseUrl } from "../utils/url";
 import {
 	type NormalizedUsage,
@@ -252,12 +252,15 @@ proxy.get("/models", tokenAuth, async (c) => {
 		: collectUniqueModelIds(allowed);
 
 	const now = Math.floor(Date.now() / 1000);
-	const modelData = modelIds.map((id) => ({
-		id,
-		object: "model",
-		created: now,
-		owned_by: "system",
-	}));
+	const modelData: Array<{ id: string; object: string; created: number; owned_by: string }> = [];
+
+	// Load alias-only set to hide original names
+	const aliasOnlySet = await loadAliasOnlySet(c.env.DB);
+	for (const id of modelIds) {
+		if (!aliasOnlySet.has(id)) {
+			modelData.push({ id, object: "model", created: now, owned_by: "system" });
+		}
+	}
 
 	// Add aliases that point to models in the list
 	const modelIdSet = new Set(modelIds);
@@ -297,6 +300,16 @@ proxy.all("/*", tokenAuth, async (c) => {
 
 	// Resolve model aliases — returns all model IDs this name can route to
 	const resolvedNames = model ? await resolveModelNames(c.env.DB, model) : [];
+
+	// Block requests using the original name of alias-only models
+	// resolvedNames[0] === model (always), resolvedNames[1] === target model_id (if alias found)
+	// If no alias was resolved (length === 1), check if this model_id is alias-only
+	if (model && resolvedNames.length === 1) {
+		const aliasOnlySet = await loadAliasOnlySet(c.env.DB);
+		if (aliasOnlySet.has(model)) {
+			return jsonError(c, 404, "model_not_found", `The model '${model}' does not exist or is not available.`);
+		}
+	}
 
 	const reasoningEffort = extractReasoningEffort(parsedBody);
 	let mutatedStreamOptions = false;

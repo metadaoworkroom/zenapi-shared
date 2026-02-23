@@ -7,6 +7,7 @@ type ModelsViewProps = {
 	onAliasSave?: (
 		modelId: string,
 		aliases: Array<{ alias: string; is_primary: boolean }>,
+		aliasOnly?: boolean,
 	) => Promise<void>;
 	onPriceSave?: (
 		modelId: string,
@@ -188,17 +189,20 @@ const ModelCard = ({
 const AliasEditModal = ({
 	modelId,
 	initialAliases,
+	initialAliasOnly,
 	onSave,
 	onClose,
 }: {
 	modelId: string;
 	initialAliases: ModelAlias[];
-	onSave: (aliases: Array<{ alias: string; is_primary: boolean }>) => Promise<void>;
+	initialAliasOnly: boolean;
+	onSave: (aliases: Array<{ alias: string; is_primary: boolean }>, aliasOnly: boolean) => Promise<void>;
 	onClose: () => void;
 }) => {
 	const [aliases, setAliases] = useState<
 		Array<{ alias: string; is_primary: boolean }>
 	>(() => initialAliases.map((a) => ({ ...a })));
+	const [aliasOnly, setAliasOnly] = useState(initialAliasOnly);
 	const [newAlias, setNewAlias] = useState("");
 	const [saving, setSaving] = useState(false);
 
@@ -223,7 +227,7 @@ const AliasEditModal = ({
 	const handleSave = async () => {
 		setSaving(true);
 		try {
-			await onSave(aliases);
+			await onSave(aliases, aliasOnly);
 			onClose();
 		} finally {
 			setSaving(false);
@@ -312,6 +316,19 @@ const AliasEditModal = ({
 						添加
 					</button>
 				</div>
+
+				{aliases.length > 0 && (
+					<label class="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5">
+						<input
+							type="checkbox"
+							checked={aliasOnly}
+							onChange={(e) => setAliasOnly((e.currentTarget as HTMLInputElement).checked)}
+							class="accent-amber-500"
+						/>
+						<span class="text-sm text-stone-700">仅限别名</span>
+						<span class="text-xs text-stone-400">— 隐藏原始模型名，只能通过别名调用</span>
+					</label>
+				)}
 
 				<div class="mt-5 flex items-center justify-end gap-2">
 					<button
@@ -558,6 +575,7 @@ function mergeByDisplayName(models: ModelItem[]): ModelItem[] {
 			id: displayName,
 			display_name: displayName,
 			aliases: allAliases,
+			alias_only: group.some((m) => m.alias_only),
 			channels,
 			total_requests: totalRequests,
 			total_tokens: totalTokens,
@@ -752,7 +770,8 @@ export const ModelsView = ({ models, onAliasSave, onPriceSave }: ModelsViewProps
 				<AliasEditModal
 					modelId={aliasModel.id}
 					initialAliases={aliasModel.aliases}
-					onSave={(aliases) => onAliasSave(aliasModel.id, aliases)}
+					initialAliasOnly={aliasModel.alias_only ?? false}
+					onSave={(aliases, aliasOnly) => onAliasSave(aliasModel.id, aliases, aliasOnly)}
 					onClose={() => setAliasModelId(null)}
 				/>
 			)}

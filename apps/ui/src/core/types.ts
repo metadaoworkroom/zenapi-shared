@@ -148,10 +148,16 @@ export type ModelChannel = {
 
 export type ModelAlias = { alias: string; is_primary: boolean };
 
+export type ModelAliasGroup = {
+	aliases: ModelAlias[];
+	alias_only: boolean;
+};
+
 export type ModelItem = {
 	id: string;
 	display_name: string;
 	aliases: ModelAlias[];
+	alias_only: boolean;
 	channels: ModelChannel[];
 	total_requests: number;
 	total_tokens: number;

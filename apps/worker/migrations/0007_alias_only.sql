@@ -1,0 +1,1 @@
+ALTER TABLE model_aliases ADD COLUMN alias_only INTEGER DEFAULT 0;

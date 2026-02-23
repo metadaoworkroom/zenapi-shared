@@ -587,11 +587,12 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 		async (
 			modelId: string,
 			aliases: Array<{ alias: string; is_primary: boolean }>,
+			aliasOnly?: boolean,
 		) => {
 			try {
 				await apiFetch(`/api/model-aliases/${encodeURIComponent(modelId)}`, {
 					method: "PUT",
-					body: JSON.stringify({ aliases }),
+					body: JSON.stringify({ aliases, alias_only: aliasOnly ?? false }),
 				});
 				await loadModels();
 				setNotice("别名已保存");
