@@ -47,11 +47,12 @@ userAuthRoutes.post("/register", async (c) => {
 	const id = crypto.randomUUID();
 	const passwordHash = await sha256Hex(password);
 	const now = nowIso();
+	const defaultBalance = siteMode === "shared" ? 100 : 0;
 
 	await c.env.DB.prepare(
 		"INSERT INTO users (id, email, name, password_hash, role, balance, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 	)
-		.bind(id, email, name, passwordHash, "user", 0, "active", now, now)
+		.bind(id, email, name, passwordHash, "user", defaultBalance, "active", now, now)
 		.run();
 
 	// Auto-login after registration
@@ -68,7 +69,7 @@ userAuthRoutes.post("/register", async (c) => {
 	return c.json({
 		token: rawToken,
 		expires_at: expiresAt,
-		user: { id, email, name, role: "user", balance: 0, status: "active" },
+		user: { id, email, name, role: "user", balance: defaultBalance, status: "active" },
 	});
 });
 
