@@ -30,13 +30,13 @@ adminUsers.post("/", async (c) => {
 	const password = String(body.password);
 
 	const existing = await c.env.DB.prepare(
-		"SELECT id FROM users WHERE email = ?",
+		"SELECT id FROM users WHERE email = ? OR LOWER(name) = ?",
 	)
-		.bind(email)
+		.bind(email, name.toLowerCase())
 		.first();
 
 	if (existing) {
-		return jsonError(c, 409, "email_exists", "email_exists");
+		return jsonError(c, 409, "email_or_name_exists", "email_or_name_exists");
 	}
 
 	const id = crypto.randomUUID();

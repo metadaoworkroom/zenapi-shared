@@ -69,8 +69,9 @@ export const DashboardView = ({ dashboard }: DashboardViewProps) => {
 							按日趋势
 						</h3>
 					</div>
+					<div class="max-h-80 overflow-y-auto">
 					<table class="w-full border-collapse text-sm">
-						<thead>
+						<thead class="sticky top-0 bg-white">
 							<tr>
 								<th class="border-b border-stone-200 px-3 py-2.5 text-left text-xs uppercase tracking-widest text-stone-500">
 									日期
@@ -99,6 +100,7 @@ export const DashboardView = ({ dashboard }: DashboardViewProps) => {
 							))}
 						</tbody>
 					</table>
+					</div>
 				</div>
 				<div class="rounded-2xl border border-stone-200 bg-white p-5 shadow-lg">
 					<div class="mb-4 flex items-center justify-between">
@@ -106,8 +108,9 @@ export const DashboardView = ({ dashboard }: DashboardViewProps) => {
 							模型排行
 						</h3>
 					</div>
+					<div class="max-h-80 overflow-y-auto">
 					<table class="w-full border-collapse text-sm">
-						<thead>
+						<thead class="sticky top-0 bg-white">
 							<tr>
 								<th class="border-b border-stone-200 px-3 py-2.5 text-left text-xs uppercase tracking-widest text-stone-500">
 									模型
@@ -136,6 +139,7 @@ export const DashboardView = ({ dashboard }: DashboardViewProps) => {
 							))}
 						</tbody>
 					</table>
+					</div>
 				</div>
 			</div>
 			<div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -145,8 +149,9 @@ export const DashboardView = ({ dashboard }: DashboardViewProps) => {
 							渠道贡献
 						</h3>
 					</div>
+					<div class="max-h-80 overflow-y-auto">
 					<table class="w-full border-collapse text-sm">
-						<thead>
+						<thead class="sticky top-0 bg-white">
 							<tr>
 								<th class="border-b border-stone-200 px-3 py-2.5 text-left text-xs uppercase tracking-widest text-stone-500">
 									渠道
@@ -178,6 +183,7 @@ export const DashboardView = ({ dashboard }: DashboardViewProps) => {
 							))}
 						</tbody>
 					</table>
+					</div>
 				</div>
 				<div class="rounded-2xl border border-stone-200 bg-white p-5 shadow-lg">
 					<div class="mb-4 flex items-center justify-between">
@@ -185,8 +191,9 @@ export const DashboardView = ({ dashboard }: DashboardViewProps) => {
 							令牌贡献
 						</h3>
 					</div>
+					<div class="max-h-80 overflow-y-auto">
 					<table class="w-full border-collapse text-sm">
-						<thead>
+						<thead class="sticky top-0 bg-white">
 							<tr>
 								<th class="border-b border-stone-200 px-3 py-2.5 text-left text-xs uppercase tracking-widest text-stone-500">
 									令牌
@@ -215,6 +222,7 @@ export const DashboardView = ({ dashboard }: DashboardViewProps) => {
 							))}
 						</tbody>
 					</table>
+					</div>
 				</div>
 			</div>
 		</div>
