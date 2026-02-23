@@ -73,22 +73,23 @@ userAuthRoutes.post("/register", async (c) => {
 });
 
 /**
- * Logs in a user with email and password.
+ * Logs in a user with email/username and password.
  */
 userAuthRoutes.post("/login", async (c) => {
 	const body = await c.req.json().catch(() => null);
-	if (!body?.email || !body?.password) {
-		return jsonError(c, 400, "missing_fields", "email and password required");
+	const account = body?.account ?? body?.email;
+	if (!account || !body?.password) {
+		return jsonError(c, 400, "missing_fields", "account and password required");
 	}
 
-	const email = String(body.email).trim().toLowerCase();
+	const accountStr = String(account).trim().toLowerCase();
 	const password = String(body.password);
 	const passwordHash = await sha256Hex(password);
 
 	const user = await c.env.DB.prepare(
-		"SELECT id, email, name, role, balance, status, password_hash FROM users WHERE email = ?",
+		"SELECT id, email, name, role, balance, status, password_hash FROM users WHERE email = ? OR LOWER(name) = ?",
 	)
-		.bind(email)
+		.bind(accountStr, accountStr)
 		.first<UserRecord & { password_hash: string }>();
 
 	if (!user || user.password_hash !== passwordHash) {

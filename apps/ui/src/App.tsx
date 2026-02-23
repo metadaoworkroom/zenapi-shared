@@ -132,13 +132,13 @@ const App = () => {
 		if (!adminToken) {
 			return (
 				<div class="min-h-screen bg-linear-to-b from-white via-stone-50 to-stone-100 font-['IBM_Plex_Sans'] text-stone-900 antialiased">
-					<LoginView notice={notice} onSubmit={handleAdminLogin} />
+					<LoginView notice={notice} onSubmit={handleAdminLogin} onNavigate={navigateTo} />
 				</div>
 			);
 		}
 		return (
 			<div class="min-h-screen bg-linear-to-b from-white via-stone-50 to-stone-100 font-['IBM_Plex_Sans'] text-stone-900 antialiased">
-				<AdminApp token={adminToken} updateToken={updateAdminToken} />
+				<AdminApp token={adminToken} updateToken={updateAdminToken} onNavigate={navigateTo} />
 			</div>
 		);
 	}

@@ -10,6 +10,7 @@ type AppLayoutProps = {
 	onTabChange: (tabId: TabId) => void;
 	onToggleMobileMenu: () => void;
 	onLogout: () => void;
+	onNavigate: (path: string) => void;
 	children?: unknown;
 };
 
@@ -26,6 +27,7 @@ export const AppLayout = ({
 	onTabChange,
 	onToggleMobileMenu,
 	onLogout,
+	onNavigate,
 	children,
 }: AppLayoutProps) => (
 	<div class="grid h-screen grid-cols-1 grid-rows-[auto_1fr] lg:grid-cols-[260px_1fr] lg:grid-rows-none overflow-hidden">
@@ -62,9 +64,9 @@ export const AppLayout = ({
 					)}
 				</svg>
 			</button>
-			<h2 class="font-['Space_Grotesk'] text-sm font-semibold tracking-tight text-stone-900">
+			<button type="button" class="font-['Space_Grotesk'] text-sm font-semibold tracking-tight text-stone-900" onClick={() => onNavigate("/")}>
 				ZenAPI
-			</h2>
+			</button>
 			<div class="w-10" />
 		</div>
 
@@ -82,9 +84,9 @@ export const AppLayout = ({
 				/>
 				<aside class="absolute left-0 top-0 h-full w-[280px] border-r border-stone-200 bg-white px-5 py-8 shadow-xl">
 					<div class="mb-8 flex flex-col gap-1.5">
-						<h2 class="font-['Space_Grotesk'] text-lg font-semibold tracking-tight text-stone-900">
+						<button type="button" class="font-['Space_Grotesk'] text-lg font-semibold tracking-tight text-stone-900 text-left" onClick={() => onNavigate("/")}>
 							ZenAPI
-						</h2>
+						</button>
 						<span class="text-xs uppercase tracking-widest text-stone-500">
 							console
 						</span>
@@ -123,9 +125,9 @@ export const AppLayout = ({
 		{/* Desktop sidebar */}
 		<aside class="hidden border-b border-stone-200 bg-white px-5 py-8 lg:sticky lg:top-0 lg:block lg:h-screen lg:border-b-0 lg:border-r">
 			<div class="mb-8 flex flex-col gap-1.5">
-				<h2 class="font-['Space_Grotesk'] text-lg font-semibold tracking-tight text-stone-900">
+				<button type="button" class="font-['Space_Grotesk'] text-lg font-semibold tracking-tight text-stone-900 text-left" onClick={() => onNavigate("/")}>
 					ZenAPI
-				</h2>
+				</button>
 				<span class="text-xs uppercase tracking-widest text-stone-500">
 					console
 				</span>

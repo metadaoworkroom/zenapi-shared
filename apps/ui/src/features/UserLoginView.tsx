@@ -2,46 +2,48 @@ import { useState } from "hono/jsx/dom";
 
 type UserLoginViewProps = {
 	notice: string;
-	onSubmit: (email: string, password: string) => void;
+	onSubmit: (account: string, password: string) => void;
 	onGoRegister: () => void;
+	onNavigate: (path: string) => void;
 };
 
 export const UserLoginView = ({
 	notice,
 	onSubmit,
 	onGoRegister,
+	onNavigate,
 }: UserLoginViewProps) => {
-	const [email, setEmail] = useState("");
+	const [account, setAccount] = useState("");
 	const [password, setPassword] = useState("");
 
 	const handleSubmit = (e: Event) => {
 		e.preventDefault();
-		onSubmit(email, password);
+		onSubmit(account, password);
 	};
 
 	return (
 		<div class="mx-auto flex min-h-[calc(100vh-57px)] items-center justify-center px-4 py-8">
 		<div class="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-8 shadow-lg">
-			<h1 class="mb-2 font-['Space_Grotesk'] text-2xl tracking-tight text-stone-900">
+			<button type="button" class="mb-2 font-['Space_Grotesk'] text-2xl tracking-tight text-stone-900" onClick={() => onNavigate("/")}>
 				ZenAPI
-			</h1>
+			</button>
 			<p class="text-sm text-stone-500">登录您的账户。</p>
 			<form class="mt-6 grid gap-4" onSubmit={handleSubmit}>
 				<div>
 					<label
 						class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500"
-						for="user-email"
+						for="user-account"
 					>
-						邮箱
+						邮箱 / 用户名
 					</label>
 					<input
 						class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
-						id="user-email"
-						type="email"
+						id="user-account"
+						type="text"
 						required
-						value={email}
+						value={account}
 						onInput={(e) =>
-							setEmail(
+							setAccount(
 								(e.currentTarget as HTMLInputElement)?.value ?? "",
 							)
 						}

@@ -1,6 +1,7 @@
 type LoginViewProps = {
 	notice: string;
 	onSubmit: (event: Event) => void;
+	onNavigate: (path: string) => void;
 };
 
 /**
@@ -12,11 +13,11 @@ type LoginViewProps = {
  * Returns:
  *   Login JSX element.
  */
-export const LoginView = ({ notice, onSubmit }: LoginViewProps) => (
+export const LoginView = ({ notice, onSubmit, onNavigate }: LoginViewProps) => (
 	<div class="mx-auto mt-24 max-w-md rounded-2xl border border-stone-200 bg-white p-8 shadow-lg">
-		<h1 class="mb-2 font-['Space_Grotesk'] text-2xl tracking-tight text-stone-900">
+		<button type="button" class="mb-2 font-['Space_Grotesk'] text-2xl tracking-tight text-stone-900" onClick={() => onNavigate("/")}>
 			ZenAPI
-		</h1>
+		</button>
 		<p class="text-sm text-stone-500">请输入管理员密码登录管理台。</p>
 		<form class="mt-6 grid gap-4" onSubmit={onSubmit}>
 			<div>

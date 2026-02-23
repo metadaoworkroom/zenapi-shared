@@ -41,6 +41,7 @@ import { PlaygroundView } from "./features/PlaygroundView";
 type AdminAppProps = {
 	token: string;
 	updateToken: (next: string | null) => void;
+	onNavigate: (path: string) => void;
 };
 
 const normalizePath = (path: string) => {
@@ -72,7 +73,7 @@ const adminPathToTab: Record<string, TabId> = {
 	"/admin/playground": "playground",
 };
 
-export const AdminApp = ({ token, updateToken }: AdminAppProps) => {
+export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 	const [activeTab, setActiveTab] = useState<TabId>(() => {
 		const normalized = normalizePath(window.location.pathname);
 		return adminPathToTab[normalized] ?? "dashboard";
@@ -790,6 +791,7 @@ export const AdminApp = ({ token, updateToken }: AdminAppProps) => {
 			onTabChange={handleTabChange}
 			onToggleMobileMenu={toggleMobileMenu}
 			onLogout={handleLogout}
+			onNavigate={onNavigate}
 		>
 			{renderContent()}
 		</AppLayout>

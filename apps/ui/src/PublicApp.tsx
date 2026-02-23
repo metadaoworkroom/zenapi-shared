@@ -45,12 +45,12 @@ export const PublicApp = ({ onUserLogin, onNavigate, siteMode }: PublicAppProps)
 	}, []);
 
 	const handleLogin = useCallback(
-		async (email: string, password: string) => {
+		async (account: string, password: string) => {
 			try {
 				const api = apiFetch();
 				const result = await api<{ token: string }>("/api/u/auth/login", {
 					method: "POST",
-					body: JSON.stringify({ email, password }),
+					body: JSON.stringify({ account, password }),
 				});
 				onUserLogin(result.token);
 			} catch (error) {
@@ -114,6 +114,7 @@ export const PublicApp = ({ onUserLogin, onNavigate, siteMode }: PublicAppProps)
 					siteMode={siteMode}
 					onSubmit={handleRegister}
 					onGoLogin={() => navigate("login")}
+					onNavigate={onNavigate}
 				/>
 			</div>
 		);
@@ -153,6 +154,7 @@ export const PublicApp = ({ onUserLogin, onNavigate, siteMode }: PublicAppProps)
 				notice={notice}
 				onSubmit={handleLogin}
 				onGoRegister={() => navigate("register")}
+				onNavigate={onNavigate}
 			/>
 		</div>
 	);

@@ -285,9 +285,9 @@ export const UserApp = ({ token, user, updateToken, onNavigate }: UserAppProps) 
 						)}
 					</svg>
 				</button>
-				<h2 class="font-['Space_Grotesk'] text-sm font-semibold tracking-tight text-stone-900">
+				<button type="button" class="font-['Space_Grotesk'] text-sm font-semibold tracking-tight text-stone-900" onClick={() => onNavigate("/")}>
 					ZenAPI
-				</h2>
+				</button>
 				<div class="w-10" />
 			</div>
 
@@ -306,9 +306,9 @@ export const UserApp = ({ token, user, updateToken, onNavigate }: UserAppProps) 
 					/>
 					<aside class="absolute left-0 top-0 h-full w-[280px] border-r border-stone-200 bg-white px-5 py-8 shadow-xl">
 						<div class="mb-8 flex flex-col gap-1.5">
-							<h2 class="font-['Space_Grotesk'] text-lg font-semibold tracking-tight text-stone-900">
+							<button type="button" class="font-['Space_Grotesk'] text-lg font-semibold tracking-tight text-stone-900 text-left" onClick={() => onNavigate("/")}>
 								ZenAPI
-							</h2>
+							</button>
 							<span class="text-xs text-stone-500">
 								{user.name} ({user.email})
 							</span>
@@ -347,9 +347,9 @@ export const UserApp = ({ token, user, updateToken, onNavigate }: UserAppProps) 
 			{/* Desktop sidebar */}
 			<aside class="hidden border-b border-stone-200 bg-white px-5 py-8 lg:sticky lg:top-0 lg:block lg:h-screen lg:border-b-0 lg:border-r">
 				<div class="mb-8 flex flex-col gap-1.5">
-					<h2 class="font-['Space_Grotesk'] text-lg font-semibold tracking-tight text-stone-900">
+					<button type="button" class="font-['Space_Grotesk'] text-lg font-semibold tracking-tight text-stone-900 text-left" onClick={() => onNavigate("/")}>
 						ZenAPI
-					</h2>
+					</button>
 					<span class="text-xs text-stone-500">
 						{user.name} ({user.email})
 					</span>
