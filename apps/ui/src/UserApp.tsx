@@ -16,6 +16,17 @@ import { UserTokensView } from "./features/UserTokensView";
 import { UserUsageView } from "./features/UserUsageView";
 import { UserChannelsView } from "./features/UserChannelsView";
 
+type ChannelItem = {
+	id: string;
+	name: string;
+	base_url: string;
+	api_key?: string;
+	models_json?: string;
+	api_format: string;
+	status: string;
+	created_at: string;
+};
+
 type UserAppProps = {
 	token: string;
 	user: User;
@@ -23,6 +34,7 @@ type UserAppProps = {
 	onNavigate: (path: string) => void;
 	linuxdoEnabled: boolean;
 	onUserRefresh: () => void;
+	siteMode: SiteMode;
 };
 
 const normalizePath = (path: string) => {
@@ -46,7 +58,7 @@ const userPathToTab: Record<string, UserTabId> = {
 	"/user/channels": "channels",
 };
 
-export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, onUserRefresh }: UserAppProps) => {
+export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, onUserRefresh, siteMode }: UserAppProps) => {
 	const [activeTab, setActiveTab] = useState<UserTabId>(() => {
 		const normalized = normalizePath(window.location.pathname);
 		return userPathToTab[normalized] ?? "dashboard";
@@ -56,7 +68,7 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 	const [dashboardData, setDashboardData] =
 		useState<UserDashboardData | null>(null);
 	const [models, setModels] = useState<PublicModelItem[]>([]);
-	const [siteMode, setSiteMode] = useState<SiteMode>("personal");
+	const [channels, setChannels] = useState<ChannelItem[]>([]);
 	const [tokens, setTokens] = useState<Token[]>([]);
 	const [usage, setUsage] = useState<UsageLog[]>([]);
 	const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -89,16 +101,6 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 		[token, updateToken],
 	);
 
-	// Load site mode eagerly on mount so conditional tabs (e.g. channels) appear immediately
-	useEffect(() => {
-		apiFetch<{ models: PublicModelItem[]; site_mode: SiteMode }>("/api/u/models")
-			.then((result) => {
-				setSiteMode(result.site_mode);
-				setModels(result.models);
-			})
-			.catch(() => {});
-	}, [apiFetch]);
-
 	const loadDashboard = useCallback(async () => {
 		const data = await apiFetch<UserDashboardData>("/api/u/dashboard");
 		setDashboardData(data);
@@ -110,7 +112,6 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 			site_mode: SiteMode;
 		}>("/api/u/models");
 		setModels(result.models);
-		setSiteMode(result.site_mode);
 	}, [apiFetch]);
 
 	const loadTokens = useCallback(async () => {
@@ -125,6 +126,11 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 		setUsage(result.logs);
 	}, [apiFetch]);
 
+	const loadChannels = useCallback(async () => {
+		const result = await apiFetch<{ channels: ChannelItem[] }>("/api/u/channels");
+		setChannels(result.channels);
+	}, [apiFetch]);
+
 	const loadedTabs = useRef<Set<string>>(new Set<string>());
 
 	const loadTab = useCallback(
@@ -136,7 +142,7 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 				if (tabId === "models") await loadModels();
 				if (tabId === "tokens") await loadTokens();
 				if (tabId === "usage") await loadUsage();
-				if (tabId === "channels") await loadModels();
+				if (tabId === "channels") await loadChannels();
 				loadedTabs.current!.add(tabId);
 			} catch (error) {
 				setNotice((error as Error).message);
@@ -144,7 +150,7 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 				setLoading(false);
 			}
 		},
-		[loadDashboard, loadModels, loadTokens, loadUsage],
+		[loadDashboard, loadModels, loadTokens, loadUsage, loadChannels],
 	);
 
 	useEffect(() => {
@@ -285,7 +291,7 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 		}
 		if (activeTab === "channels") {
 			return (
-				<UserChannelsView token={token} updateToken={updateToken} />
+				<UserChannelsView token={token} updateToken={updateToken} channels={channels} onRefresh={loadChannels} />
 			);
 		}
 		return null;

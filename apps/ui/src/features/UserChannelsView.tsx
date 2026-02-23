@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "hono/jsx/dom";
+import { useCallback, useMemo, useState } from "hono/jsx/dom";
 import { createApiFetch } from "../core/api";
 import type { ChannelApiFormat } from "../core/types";
 
@@ -54,13 +54,16 @@ function parseModelsJsonToText(modelsJson?: string): string {
 type UserChannelsViewProps = {
 	token: string;
 	updateToken: (next: string | null) => void;
+	channels: ChannelItem[];
+	onRefresh: () => Promise<void>;
 };
 
 export const UserChannelsView = ({
 	token,
 	updateToken,
+	channels,
+	onRefresh,
 }: UserChannelsViewProps) => {
-	const [channels, setChannels] = useState<ChannelItem[]>([]);
 	const [showModal, setShowModal] = useState(false);
 	const [editingChannel, setEditingChannel] = useState<ChannelItem | null>(null);
 	const [notice, setNotice] = useState("");
@@ -70,21 +73,6 @@ export const UserChannelsView = ({
 		() => createApiFetch(token, () => updateToken(null)),
 		[token, updateToken],
 	);
-
-	const loadChannels = useCallback(async () => {
-		try {
-			const result = await apiFetch<{ channels: ChannelItem[] }>(
-				"/api/u/channels",
-			);
-			setChannels(result.channels);
-		} catch (error) {
-			setNotice((error as Error).message);
-		}
-	}, [apiFetch]);
-
-	useEffect(() => {
-		loadChannels();
-	}, [loadChannels]);
 
 	const openCreate = useCallback(() => {
 		setEditingChannel(null);
@@ -142,12 +130,12 @@ export const UserChannelsView = ({
 					setNotice("渠道已贡献");
 				}
 				closeModal();
-				await loadChannels();
+				await onRefresh();
 			} catch (error) {
 				setNotice((error as Error).message);
 			}
 		},
-		[apiFetch, form, editingChannel, closeModal, loadChannels],
+		[apiFetch, form, editingChannel, closeModal, onRefresh],
 	);
 
 	const handleDelete = useCallback(
@@ -156,12 +144,12 @@ export const UserChannelsView = ({
 			try {
 				await apiFetch(`/api/u/channels/${id}`, { method: "DELETE" });
 				setNotice("渠道已删除");
-				await loadChannels();
+				await onRefresh();
 			} catch (error) {
 				setNotice((error as Error).message);
 			}
 		},
-		[apiFetch, loadChannels],
+		[apiFetch, onRefresh],
 	);
 
 	const isEditing = Boolean(editingChannel);

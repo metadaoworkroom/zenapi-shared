@@ -215,6 +215,7 @@ const App = () => {
 					onNavigate={navigateTo}
 					linuxdoEnabled={linuxdoEnabled}
 					onUserRefresh={handleUserRefresh}
+					siteMode={siteMode}
 				/>
 			</div>
 		);
