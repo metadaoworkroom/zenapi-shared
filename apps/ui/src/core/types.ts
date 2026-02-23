@@ -217,12 +217,28 @@ export type User = {
 	linuxdo_id?: string | null;
 };
 
+export type ContributionChannel = {
+	name: string;
+	requests: number;
+	total_tokens: number;
+};
+
+export type ContributionEntry = {
+	user_name: string;
+	linuxdo_id: string | null;
+	channel_count: number;
+	channels: ContributionChannel[];
+	total_requests: number;
+	total_tokens: number;
+};
+
 export type UserDashboardData = {
 	balance: number;
 	total_requests: number;
 	total_tokens: number;
 	total_cost: number;
 	recent_usage: Array<{ day: string; requests: number; cost: number }>;
+	contributions: ContributionEntry[];
 };
 
 export type UserTabId =

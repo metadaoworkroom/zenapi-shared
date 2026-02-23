@@ -206,12 +206,79 @@ userApi.get("/dashboard", async (c) => {
 		.bind(userId)
 		.all();
 
+	const siteMode = await getSiteMode(c.env.DB);
+	let contributions: Array<{
+		user_name: string;
+		linuxdo_id: string | null;
+		channel_count: number;
+		channels: Array<{ name: string; requests: number; total_tokens: number }>;
+		total_requests: number;
+		total_tokens: number;
+	}> = [];
+
+	if (siteMode === "shared") {
+		const contribRows = await c.env.DB.prepare(
+			`SELECT
+				u.id AS user_id,
+				u.name AS user_name,
+				u.linuxdo_id,
+				COUNT(DISTINCT c.id) AS channel_count,
+				COALESCE(SUM(CASE WHEN ul.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS total_requests,
+				COALESCE(SUM(ul.total_tokens), 0) AS total_tokens
+			FROM channels c
+			JOIN users u ON c.contributed_by = u.id
+			LEFT JOIN usage_logs ul ON ul.channel_id = c.id
+			WHERE c.contributed_by IS NOT NULL AND c.status = 'active'
+			GROUP BY u.id, u.name, u.linuxdo_id
+			ORDER BY total_requests DESC`,
+		).all();
+
+		const contributorIds = (contribRows.results ?? []).map((r) => String(r.user_id));
+
+		let channelDetailMap = new Map<string, Array<{ name: string; requests: number; total_tokens: number }>>();
+		if (contributorIds.length > 0) {
+			const channelRows = await c.env.DB.prepare(
+				`SELECT
+					c.contributed_by,
+					c.name,
+					COALESCE(SUM(CASE WHEN ul.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS requests,
+					COALESCE(SUM(ul.total_tokens), 0) AS total_tokens
+				FROM channels c
+				LEFT JOIN usage_logs ul ON ul.channel_id = c.id
+				WHERE c.contributed_by IS NOT NULL AND c.status = 'active'
+				GROUP BY c.id, c.contributed_by, c.name
+				ORDER BY requests DESC`,
+			).all();
+
+			for (const row of channelRows.results ?? []) {
+				const uid = String(row.contributed_by);
+				const arr = channelDetailMap.get(uid) ?? [];
+				arr.push({
+					name: String(row.name),
+					requests: Number(row.requests),
+					total_tokens: Number(row.total_tokens),
+				});
+				channelDetailMap.set(uid, arr);
+			}
+		}
+
+		contributions = (contribRows.results ?? []).map((row) => ({
+			user_name: String(row.user_name),
+			linuxdo_id: row.linuxdo_id ? String(row.linuxdo_id) : null,
+			channel_count: Number(row.channel_count),
+			channels: channelDetailMap.get(String(row.user_id)) ?? [],
+			total_requests: Number(row.total_requests),
+			total_tokens: Number(row.total_tokens),
+		}));
+	}
+
 	return c.json({
 		balance: user.balance,
 		total_requests: summary?.total_requests ?? 0,
 		total_tokens: summary?.total_tokens ?? 0,
 		total_cost: summary?.total_cost ?? 0,
 		recent_usage: recentUsage.results ?? [],
+		contributions,
 	});
 });
 

@@ -1,4 +1,5 @@
-import type { User, UserDashboardData } from "../core/types";
+import { useState } from "hono/jsx/dom";
+import type { ContributionEntry, User, UserDashboardData } from "../core/types";
 
 type UserDashboardProps = {
 	data: UserDashboardData | null;
@@ -19,6 +20,90 @@ function formatNumber(n: number): string {
 	if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
 	return String(n);
 }
+
+const ContributionBoard = ({ contributions }: { contributions: ContributionEntry[] }) => {
+	const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+
+	return (
+		<div class="rounded-2xl border border-stone-200 bg-white p-5 shadow-lg">
+			<h3 class="mb-4 font-['Space_Grotesk'] text-lg tracking-tight text-stone-900">
+				贡献榜
+			</h3>
+			<div class="overflow-x-auto">
+				<table class="w-full text-left text-sm">
+					<thead>
+						<tr class="border-b border-stone-100 text-xs uppercase tracking-widest text-stone-400">
+							<th class="pb-2 pr-4 font-medium">#</th>
+							<th class="pb-2 pr-4 font-medium">贡献者</th>
+							<th class="pb-2 pr-4 text-right font-medium">渠道数</th>
+							<th class="pb-2 pr-4 text-right font-medium">总请求</th>
+							<th class="pb-2 text-right font-medium">总 Token</th>
+						</tr>
+					</thead>
+					<tbody>
+						{contributions.map((entry, idx) => {
+							const isExpanded = expandedIdx === idx;
+							return (
+								<>
+									<tr
+										key={`row-${idx}`}
+										class={`border-b border-stone-50 cursor-pointer transition-colors hover:bg-stone-50 ${isExpanded ? "bg-stone-50" : ""}`}
+										onClick={() => setExpandedIdx(isExpanded ? null : idx)}
+									>
+										<td class="py-2.5 pr-4 text-stone-400">{idx + 1}</td>
+										<td class="py-2.5 pr-4">
+											<span class="font-medium text-stone-700">{entry.user_name}</span>
+											{entry.linuxdo_id && (
+												<span class="ml-1.5 text-xs text-stone-400">L{entry.linuxdo_id}</span>
+											)}
+										</td>
+										<td class="py-2.5 pr-4 text-right text-stone-600">{entry.channel_count}</td>
+										<td class="py-2.5 pr-4 text-right font-['Space_Grotesk'] text-stone-600">
+											{formatNumber(entry.total_requests)}
+										</td>
+										<td class="py-2.5 text-right font-['Space_Grotesk'] text-stone-600">
+											{formatNumber(entry.total_tokens)}
+										</td>
+									</tr>
+									{isExpanded && entry.channels.length > 0 && (
+										<tr key={`detail-${idx}`}>
+											<td colSpan={5} class="pb-2">
+												<div class="ml-8 rounded-lg bg-stone-50 p-3">
+													<table class="w-full text-xs">
+														<thead>
+															<tr class="text-stone-400">
+																<th class="pb-1 text-left font-medium">渠道名称</th>
+																<th class="pb-1 text-right font-medium">请求</th>
+																<th class="pb-1 text-right font-medium">Token</th>
+															</tr>
+														</thead>
+														<tbody>
+															{entry.channels.map((ch) => (
+																<tr key={ch.name} class="border-t border-stone-100">
+																	<td class="py-1 text-stone-600">{ch.name}</td>
+																	<td class="py-1 text-right font-['Space_Grotesk'] text-stone-500">
+																		{formatNumber(ch.requests)}
+																	</td>
+																	<td class="py-1 text-right font-['Space_Grotesk'] text-stone-500">
+																		{formatNumber(ch.total_tokens)}
+																	</td>
+																</tr>
+															))}
+														</tbody>
+													</table>
+												</div>
+											</td>
+										</tr>
+									)}
+								</>
+							);
+						})}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	);
+};
 
 export const UserDashboard = ({ data, user, token, linuxdoEnabled, onUnbind }: UserDashboardProps) => {
 	if (!data) {
@@ -142,6 +227,10 @@ export const UserDashboard = ({ data, user, token, linuxdoEnabled, onUnbind }: U
 					</div>
 				)}
 			</div>
+			{/* Contribution leaderboard */}
+			{data.contributions.length > 0 && (
+				<ContributionBoard contributions={data.contributions} />
+			)}
 		</div>
 	);
 };
