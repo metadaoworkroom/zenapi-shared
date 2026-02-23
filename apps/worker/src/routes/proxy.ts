@@ -25,6 +25,7 @@ import { extractReasoningEffort } from "../utils/reasoning";
 import { parseApiKeys, shuffleArray } from "../utils/keys";
 import { isRetryableStatus, sleep } from "../utils/retry";
 import { resolveChannelRoute } from "../services/channel-route";
+import { resolveModelNames, loadAliasMap } from "../services/model-aliases";
 import { normalizeBaseUrl } from "../utils/url";
 import {
 	type NormalizedUsage,
@@ -62,6 +63,47 @@ export function channelSupportsSharedModel(
 		return models.length > 0;
 	}
 	return models.some((entry) => entry.id === model);
+}
+
+/**
+ * Returns true if the channel supports ANY of the given model names.
+ */
+export function channelSupportsAnyModel(
+	channel: ChannelRecord,
+	names: string[],
+): boolean {
+	const models = extractModels(channel);
+	return names.some((name) => models.some((entry) => entry.id === name));
+}
+
+/**
+ * Returns true if the channel supports ANY of the given model names (shared only).
+ */
+export function channelSupportsAnySharedModel(
+	channel: ChannelRecord,
+	names: string[],
+): boolean {
+	const models = extractSharedModels(
+		channel as unknown as { id: string; name: string; models_json: string },
+	);
+	return names.some((name) => models.some((entry) => entry.id === name));
+}
+
+/**
+ * Finds which model name from the resolved set the channel actually supports.
+ * Returns the first match, or the first name as fallback.
+ */
+export function findChannelModelName(
+	channel: ChannelRecord,
+	names: string[],
+): string {
+	const models = extractModels(channel);
+	for (const name of names) {
+		if (models.some((entry) => entry.id === name)) {
+			return name;
+		}
+	}
+	return names[0];
 }
 
 export function filterAllowedChannels(
@@ -210,14 +252,30 @@ proxy.get("/models", tokenAuth, async (c) => {
 		: collectUniqueModelIds(allowed);
 
 	const now = Math.floor(Date.now() / 1000);
+	const modelData = modelIds.map((id) => ({
+		id,
+		object: "model",
+		created: now,
+		owned_by: "system",
+	}));
+
+	// Add aliases that point to models in the list
+	const modelIdSet = new Set(modelIds);
+	const aliasMap = await loadAliasMap(c.env.DB);
+	for (const [alias, targetModelId] of aliasMap) {
+		if (modelIdSet.has(targetModelId) && !modelIdSet.has(alias)) {
+			modelData.push({
+				id: alias,
+				object: "model",
+				created: now,
+				owned_by: "system",
+			});
+		}
+	}
+
 	return c.json({
 		object: "list",
-		data: modelIds.map((id) => ({
-			id,
-			object: "model",
-			created: now,
-			owned_by: "system",
-		})),
+		data: modelData,
 	});
 });
 
@@ -236,6 +294,10 @@ proxy.all("/*", tokenAuth, async (c) => {
 			? String(parsedBody.model)
 			: null;
 	const isStream = parsedBody?.stream === true;
+
+	// Resolve model aliases — returns all model IDs this name can route to
+	const resolvedNames = model ? await resolveModelNames(c.env.DB, model) : [];
+
 	const reasoningEffort = extractReasoningEffort(parsedBody);
 	let mutatedStreamOptions = false;
 	if (isStream && parsedBody && typeof parsedBody === "object") {
@@ -265,7 +327,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 	const siteMode = await getSiteMode(c.env.DB);
 	const useSharedFilter = siteMode === "shared" && !!tokenRecord.user_id;
 
-	// Resolve channel/model routing syntax
+	// Resolve channel/model routing syntax (uses original model name)
 	const { targetChannel, actualModel } = resolveChannelRoute(model, activeChannels);
 	const effectiveModel = targetChannel ? actualModel : model;
 
@@ -277,23 +339,49 @@ proxy.all("/*", tokenAuth, async (c) => {
 
 	let candidates: ChannelRecord[];
 	if (targetChannel) {
-		// Explicit channel routing — still enforce shared filter for user tokens
-		if (useSharedFilter && !channelSupportsSharedModel(targetChannel, actualModel)) {
-			return jsonError(c, 403, "model_not_shared", "model_not_shared");
+		// Explicit channel routing — verify the model exists on this channel
+		if (useSharedFilter) {
+			if (!channelSupportsSharedModel(targetChannel, actualModel)) {
+				return jsonError(c, 403, "model_not_shared", "model_not_shared");
+			}
+		} else if (!channelSupportsModel(targetChannel, actualModel)) {
+			return jsonError(
+				c,
+				404,
+				"model_not_found",
+				`The model '${actualModel}' does not exist on channel '${targetChannel.name}'.`,
+			);
 		}
 		candidates = [targetChannel];
 	} else {
 		const allowedChannels = filterAllowedChannels(activeChannels, tokenRecord);
-		const supportsFn = useSharedFilter
-			? channelSupportsSharedModel
-			: channelSupportsModel;
-		const modelChannels = allowedChannels.filter((channel) =>
-			supportsFn(channel, model),
-		);
-		candidates = modelChannels.length > 0 ? modelChannels : (useSharedFilter ? [] : allowedChannels);
+		if (resolvedNames.length > 0) {
+			const supportsFn = useSharedFilter
+				? channelSupportsAnySharedModel
+				: channelSupportsAnyModel;
+			candidates = allowedChannels.filter((channel) =>
+				supportsFn(channel, resolvedNames),
+			);
+		} else {
+			// No model specified — all channels qualify
+			const supportsFn = useSharedFilter
+				? channelSupportsSharedModel
+				: channelSupportsModel;
+			candidates = allowedChannels.filter((channel) =>
+				supportsFn(channel, null),
+			);
+		}
 	}
 
 	if (candidates.length === 0) {
+		if (model) {
+			return jsonError(
+				c,
+				404,
+				"model_not_found",
+				`The model '${model}' does not exist or is not available.`,
+			);
+		}
 		return jsonError(c, 503, "no_available_channels", "no_available_channels");
 	}
 
@@ -331,6 +419,18 @@ proxy.all("/*", tokenAuth, async (c) => {
 			const keys = shuffleArray(parseApiKeys(channel.api_key));
 			let channelRetryable = false;
 
+			// Determine the model name this channel actually supports
+			// and prepare a channel-specific request body if needed
+			let channelRequestText = requestText;
+			let channelParsedBody = parsedBody;
+			if (!targetChannel && resolvedNames.length > 1 && parsedBody) {
+				const channelModelName = findChannelModelName(channel, resolvedNames);
+				if (channelModelName !== model) {
+					channelParsedBody = { ...parsedBody, model: channelModelName };
+					channelRequestText = JSON.stringify(channelParsedBody);
+				}
+			}
+
 			for (const apiKey of keys) {
 				const incomingHeaders = new Headers(c.req.header());
 
@@ -343,8 +443,8 @@ proxy.all("/*", tokenAuth, async (c) => {
 					targetPath,
 					querySuffix,
 					incomingHeaders,
-					requestText,
-					parsedBody,
+					channelRequestText,
+					channelParsedBody,
 					isStream,
 					apiKey,
 				);
@@ -367,7 +467,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 						const fallbackTarget = `${strippedBase}${fallbackSubPath}${querySuffix}`;
 						const fallbackBody = mutatedStreamOptions
 							? originalRequestText
-							: requestText;
+							: channelRequestText;
 						response = await fetch(fallbackTarget, {
 							method: c.req.method,
 							headers,

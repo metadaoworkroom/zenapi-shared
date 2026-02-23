@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { extractModelPricings, extractSharedModelPricings } from "../services/channel-models";
 import { listActiveChannels } from "../services/channel-repo";
+import { loadPrimaryNameMap } from "../services/model-aliases";
 import { getSiteMode } from "../services/settings";
 
 const publicRoutes = new Hono<AppEnv>();
@@ -64,8 +65,11 @@ publicRoutes.get("/models", async (c) => {
 		}
 	}
 
+	const primaryNames = await loadPrimaryNameMap(c.env.DB);
+
 	const models = Array.from(modelMap.entries()).map(([id, chs]) => ({
 		id,
+		display_name: primaryNames.get(id) ?? id,
 		channels: chs,
 	}));
 

@@ -4,6 +4,7 @@ import type { UserRecord } from "../middleware/userAuth";
 import { userAuth } from "../middleware/userAuth";
 import { extractModelPricings, extractSharedModelPricings } from "../services/channel-models";
 import { listActiveChannels } from "../services/channel-repo";
+import { loadPrimaryNameMap } from "../services/model-aliases";
 import { getSiteMode } from "../services/settings";
 import { generateToken, sha256Hex } from "../utils/crypto";
 import { jsonError } from "../utils/http";
@@ -56,8 +57,11 @@ userApi.get("/models", async (c) => {
 		}
 	}
 
+	const primaryNames = await loadPrimaryNameMap(c.env.DB);
+
 	const models = Array.from(modelMap.entries()).map(([id, chs]) => ({
 		id,
+		display_name: primaryNames.get(id) ?? id,
 		channels: chs,
 	}));
 

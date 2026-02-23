@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from "hono/jsx/dom";
-import type { ModelItem } from "../core/types";
+import type { ModelAlias, ModelItem } from "../core/types";
 import { buildPageItems } from "../core/utils";
 
 type ModelsViewProps = {
 	models: ModelItem[];
+	onAliasSave?: (
+		modelId: string,
+		aliases: Array<{ alias: string; is_primary: boolean }>,
+	) => Promise<void>;
 };
 
 const MiniSparkline = ({
@@ -64,98 +68,357 @@ function formatPrice(n: number | null): string {
 	return `$${n}`;
 }
 
-const ModelCard = ({ model }: { model: ModelItem }) => (
-	<div class="rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-		<div class="mb-2 flex items-start justify-between gap-2">
-			<h4 class="break-all font-['Space_Grotesk'] text-sm font-semibold tracking-tight text-stone-900">
-				{model.id}
-			</h4>
-			<span class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">
-				{model.channels.length} 渠道
-			</span>
-		</div>
-
-		{model.avg_latency_ms != null && (
-			<p class="mb-3 text-xs text-stone-400">
-				平均延迟 {model.avg_latency_ms}ms
-			</p>
-		)}
-
-		{model.channels.length > 0 && (
-			<div class="mb-3 rounded-lg bg-stone-50 p-2.5">
-				<p class="mb-1.5 text-xs font-medium uppercase tracking-widest text-stone-400">
-					渠道价格
-				</p>
-				<div class="space-y-1">
-					{model.channels.map((ch) => (
-						<div
-							key={ch.id}
-							class="flex items-center justify-between text-xs"
+const ModelCard = ({
+	model,
+	onAliasClick,
+	compact,
+}: { model: ModelItem; onAliasClick?: () => void; compact?: boolean }) => {
+	const showSubtitle = !compact && model.display_name !== model.id;
+	return (
+		<div class="rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+			<div class="mb-2 flex items-start justify-between gap-2">
+				<div class="min-w-0 flex-1">
+					<h4 class="break-all font-['Space_Grotesk'] text-sm font-semibold tracking-tight text-stone-900">
+						{model.display_name}
+					</h4>
+					{showSubtitle && (
+						<p class="mt-0.5 break-all text-xs text-stone-400">{model.id}</p>
+					)}
+				</div>
+				<div class="flex shrink-0 items-center gap-1.5">
+					{onAliasClick && (
+						<button
+							type="button"
+							class="rounded-full border border-stone-200 bg-white px-2 py-0.5 text-xs text-stone-500 transition-colors hover:border-amber-300 hover:text-amber-600"
+							onClick={onAliasClick}
 						>
-							<span class="truncate text-stone-600">{ch.name}</span>
-							<span class="shrink-0 pl-2 text-stone-500">
-								{ch.input_price != null || ch.output_price != null ? (
-									<>
-										<span class="text-emerald-600">
-											{formatPrice(ch.input_price)}
-										</span>
-										{" / "}
-										<span class="text-blue-600">
-											{formatPrice(ch.output_price)}
-										</span>
-										<span class="ml-1 text-stone-400">/1M</span>
-									</>
-								) : (
-									<span class="text-stone-300">未设置</span>
-								)}
+							别名
+						</button>
+					)}
+					<span class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">
+						{model.channels.length} 渠道
+					</span>
+				</div>
+			</div>
+
+			{model.avg_latency_ms != null && (
+				<p class="mb-3 text-xs text-stone-400">
+					平均延迟 {model.avg_latency_ms}ms
+				</p>
+			)}
+
+			{model.channels.length > 0 && (
+				<div class="mb-3 rounded-lg bg-stone-50 p-2.5">
+					<p class="mb-1.5 text-xs font-medium uppercase tracking-widest text-stone-400">
+						渠道价格
+					</p>
+					<div class="space-y-1">
+						{model.channels.map((ch) => (
+							<div
+								key={ch.id}
+								class="flex items-center justify-between text-xs"
+							>
+								<span class="truncate text-stone-600">{ch.name}</span>
+								<span class="shrink-0 pl-2 text-stone-500">
+									{ch.input_price != null || ch.output_price != null ? (
+										<>
+											<span class="text-emerald-600">
+												{formatPrice(ch.input_price)}
+											</span>
+											{" / "}
+											<span class="text-blue-600">
+												{formatPrice(ch.output_price)}
+											</span>
+											<span class="ml-1 text-stone-400">/1M</span>
+										</>
+									) : (
+										<span class="text-stone-300">未设置</span>
+									)}
+								</span>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
+
+			{model.daily.length > 0 && (
+				<div class="mb-3">
+					<MiniSparkline data={model.daily} />
+				</div>
+			)}
+
+			<div class="flex flex-wrap gap-x-3 gap-y-1 border-t border-stone-100 pt-2.5 text-xs text-stone-500">
+				<span>
+					请求{" "}
+					<span class="font-medium text-stone-700">
+						{formatNumber(model.total_requests)}
+					</span>
+				</span>
+				<span>
+					Token{" "}
+					<span class="font-medium text-stone-700">
+						{formatNumber(model.total_tokens)}
+					</span>
+				</span>
+				<span>
+					费用{" "}
+					<span class="font-medium text-stone-700">
+						{formatCost(model.total_cost)}
+					</span>
+				</span>
+			</div>
+		</div>
+	);
+};
+
+const AliasEditModal = ({
+	modelId,
+	initialAliases,
+	onSave,
+	onClose,
+}: {
+	modelId: string;
+	initialAliases: ModelAlias[];
+	onSave: (aliases: Array<{ alias: string; is_primary: boolean }>) => Promise<void>;
+	onClose: () => void;
+}) => {
+	const [aliases, setAliases] = useState<
+		Array<{ alias: string; is_primary: boolean }>
+	>(() => initialAliases.map((a) => ({ ...a })));
+	const [newAlias, setNewAlias] = useState("");
+	const [saving, setSaving] = useState(false);
+
+	const handleAdd = () => {
+		const trimmed = newAlias.trim();
+		if (!trimmed) return;
+		if (aliases.some((a) => a.alias === trimmed)) return;
+		setAliases((prev) => [...prev, { alias: trimmed, is_primary: false }]);
+		setNewAlias("");
+	};
+
+	const handleRemove = (index: number) => {
+		setAliases((prev) => prev.filter((_, i) => i !== index));
+	};
+
+	const handlePrimaryChange = (index: number) => {
+		setAliases((prev) =>
+			prev.map((a, i) => ({ ...a, is_primary: i === index })),
+		);
+	};
+
+	const handleSave = async () => {
+		setSaving(true);
+		try {
+			await onSave(aliases);
+			onClose();
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	return (
+		<div class="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/40 px-0 py-0 md:items-center md:px-4 md:py-8">
+			<div class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-stone-200 bg-white p-6 shadow-2xl md:rounded-2xl">
+				<div class="flex items-start justify-between gap-3">
+					<div>
+						<h3 class="mb-1 font-['Space_Grotesk'] text-lg tracking-tight text-stone-900">
+							编辑别名
+						</h3>
+						<p class="break-all text-xs text-stone-500">
+							模型：{modelId}
+						</p>
+					</div>
+					<button
+						type="button"
+						class="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-50"
+						onClick={onClose}
+					>
+						关闭
+					</button>
+				</div>
+
+				<div class="mt-4 space-y-2">
+					{aliases.length === 0 && (
+						<p class="py-4 text-center text-sm text-stone-400">
+							暂无别名，在下方添加
+						</p>
+					)}
+					{aliases.map((alias, index) => (
+						<div
+							key={alias.alias}
+							class="flex items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2"
+						>
+							<label class="flex cursor-pointer items-center gap-1.5 text-xs text-stone-500">
+								<input
+									type="radio"
+									name="primary-alias"
+									checked={alias.is_primary}
+									onChange={() => handlePrimaryChange(index)}
+									class="accent-amber-500"
+								/>
+								主名
+							</label>
+							<span class="flex-1 break-all font-mono text-sm text-stone-800">
+								{alias.alias}
 							</span>
+							<button
+								type="button"
+								class="rounded-full px-2 py-0.5 text-xs text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
+								onClick={() => handleRemove(index)}
+							>
+								删除
+							</button>
 						</div>
 					))}
 				</div>
-			</div>
-		)}
 
-		{model.daily.length > 0 && (
-			<div class="mb-3">
-				<MiniSparkline data={model.daily} />
-			</div>
-		)}
+				<div class="mt-4 flex gap-2">
+					<input
+						type="text"
+						class="flex-1 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+						placeholder="输入别名..."
+						value={newAlias}
+						onInput={(e) =>
+							setNewAlias(
+								(e.currentTarget as HTMLInputElement)?.value ?? "",
+							)
+						}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								e.preventDefault();
+								handleAdd();
+							}
+						}}
+					/>
+					<button
+						type="button"
+						class="rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
+						onClick={handleAdd}
+					>
+						添加
+					</button>
+				</div>
 
-		<div class="flex flex-wrap gap-x-3 gap-y-1 border-t border-stone-100 pt-2.5 text-xs text-stone-500">
-			<span>
-				请求{" "}
-				<span class="font-medium text-stone-700">
-					{formatNumber(model.total_requests)}
-				</span>
-			</span>
-			<span>
-				Token{" "}
-				<span class="font-medium text-stone-700">
-					{formatNumber(model.total_tokens)}
-				</span>
-			</span>
-			<span>
-				费用{" "}
-				<span class="font-medium text-stone-700">
-					{formatCost(model.total_cost)}
-				</span>
-			</span>
+				<div class="mt-5 flex items-center justify-end gap-2">
+					<button
+						type="button"
+						class="rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-50"
+						onClick={onClose}
+					>
+						取消
+					</button>
+					<button
+						type="button"
+						class="rounded-lg border border-stone-900 bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:opacity-60"
+						disabled={saving}
+						onClick={handleSave}
+					>
+						{saving ? "保存中..." : "保存"}
+					</button>
+				</div>
+			</div>
 		</div>
-	</div>
-);
+	);
+};
 
 const pageSizeOptions = [12, 24, 48];
 
-export const ModelsView = ({ models }: ModelsViewProps) => {
+/** Merge models that share the same display_name into single virtual cards. */
+function mergeByDisplayName(models: ModelItem[]): ModelItem[] {
+	const groups = new Map<string, ModelItem[]>();
+	for (const m of models) {
+		const key = m.display_name;
+		const arr = groups.get(key) ?? [];
+		arr.push(m);
+		groups.set(key, arr);
+	}
+	const merged: ModelItem[] = [];
+	for (const [displayName, group] of groups) {
+		if (group.length === 1) {
+			merged.push(group[0]);
+			continue;
+		}
+		// Deduplicate channels by id
+		const seenChannels = new Set<string>();
+		const channels: ModelItem["channels"] = [];
+		for (const m of group) {
+			for (const ch of m.channels) {
+				if (!seenChannels.has(ch.id)) {
+					seenChannels.add(ch.id);
+					channels.push(ch);
+				}
+			}
+		}
+		// Merge daily data by day
+		const dailyMap = new Map<string, { requests: number; tokens: number }>();
+		for (const m of group) {
+			for (const d of m.daily) {
+				const existing = dailyMap.get(d.day);
+				if (existing) {
+					existing.requests += d.requests;
+					existing.tokens += d.tokens;
+				} else {
+					dailyMap.set(d.day, { requests: d.requests, tokens: d.tokens });
+				}
+			}
+		}
+		const daily = Array.from(dailyMap.entries())
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([day, v]) => ({ day, ...v }));
+		// Merge all aliases from all sub-models
+		const allAliases: ModelItem["aliases"] = [];
+		for (const m of group) {
+			allAliases.push(...m.aliases);
+		}
+		// Sum numeric stats
+		const totalRequests = group.reduce((s, m) => s + m.total_requests, 0);
+		const totalTokens = group.reduce((s, m) => s + m.total_tokens, 0);
+		const totalCost = group.reduce((s, m) => s + m.total_cost, 0);
+		const latencies = group
+			.map((m) => m.avg_latency_ms)
+			.filter((v): v is number => v != null);
+		const avgLatency =
+			latencies.length > 0
+				? Math.round(latencies.reduce((s, v) => s + v, 0) / latencies.length)
+				: null;
+
+		merged.push({
+			id: displayName,
+			display_name: displayName,
+			aliases: allAliases,
+			channels,
+			total_requests: totalRequests,
+			total_tokens: totalTokens,
+			total_cost: totalCost,
+			avg_latency_ms: avgLatency,
+			daily,
+		});
+	}
+	return merged;
+}
+
+export const ModelsView = ({ models, onAliasSave }: ModelsViewProps) => {
 	const [search, setSearch] = useState("");
 	const [pageSize, setPageSize] = useState(12);
 	const [page, setPage] = useState(1);
+	const [aliasModelId, setAliasModelId] = useState<string | null>(null);
+	const [primaryMode, setPrimaryMode] = useState(false);
+
+	const displayModels = useMemo(
+		() => (primaryMode ? mergeByDisplayName(models) : models),
+		[models, primaryMode],
+	);
 
 	const filtered = search
-		? models.filter((m) =>
-				m.id.toLowerCase().includes(search.toLowerCase()),
-			)
-		: models;
+		? displayModels.filter((m) => {
+				const lower = search.toLowerCase();
+				return (
+					m.id.toLowerCase().includes(lower) ||
+					m.display_name.toLowerCase().includes(lower) ||
+					m.aliases.some((a) => a.alias.toLowerCase().includes(lower))
+				);
+			})
+		: displayModels;
 
 	const total = filtered.length;
 	const totalPages = useMemo(
@@ -182,16 +445,31 @@ export const ModelsView = ({ models }: ModelsViewProps) => {
 		[page, totalPages],
 	);
 
+	const aliasModel = aliasModelId
+		? models.find((m) => m.id === aliasModelId) ?? null
+		: null;
+
 	return (
 		<div class="rounded-2xl border border-stone-200 bg-white p-5 shadow-lg">
 			<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<div class="flex items-center gap-3">
+				<div class="flex flex-wrap items-center gap-3">
 					<h3 class="mb-0 font-['Space_Grotesk'] text-lg tracking-tight text-stone-900">
 						模型广场
 					</h3>
 					<span class="rounded-full bg-stone-100 px-2.5 py-1 text-xs text-stone-500">
-						{filtered.length} / {models.length} 个模型
+						{filtered.length} / {displayModels.length} 个模型
 					</span>
+					<button
+						type="button"
+						class={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+							primaryMode
+								? "border-amber-400 bg-amber-50 text-amber-700"
+								: "border-stone-200 bg-white text-stone-500 hover:border-stone-300"
+						}`}
+						onClick={() => setPrimaryMode((v) => !v)}
+					>
+						{primaryMode ? "主名模式" : "普通模式"}
+					</button>
 				</div>
 				<input
 					class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:w-64"
@@ -212,7 +490,16 @@ export const ModelsView = ({ models }: ModelsViewProps) => {
 				<>
 					<div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
 						{pagedModels.map((model) => (
-							<ModelCard key={model.id} model={model} />
+							<ModelCard
+								key={model.id}
+								model={model}
+								compact={primaryMode}
+								onAliasClick={
+									onAliasSave && !primaryMode
+										? () => setAliasModelId(model.id)
+										: undefined
+								}
+							/>
 						))}
 					</div>
 					{/* Pagination */}
@@ -278,6 +565,14 @@ export const ModelsView = ({ models }: ModelsViewProps) => {
 						</label>
 					</div>
 				</>
+			)}
+			{aliasModel && onAliasSave && (
+				<AliasEditModal
+					modelId={aliasModel.id}
+					initialAliases={aliasModel.aliases}
+					onSave={(aliases) => onAliasSave(aliasModel.id, aliases)}
+					onClose={() => setAliasModelId(null)}
+				/>
 			)}
 		</div>
 	);

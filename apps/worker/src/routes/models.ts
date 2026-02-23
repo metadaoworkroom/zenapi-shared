@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { extractModelPricings } from "../services/channel-models";
 import { listActiveChannels } from "../services/channel-repo";
+import { listAllAliases } from "../services/model-aliases";
 
 const models = new Hono<AppEnv>();
 
@@ -17,6 +18,8 @@ type DailyUsage = { day: string; requests: number; tokens: number };
 
 type ModelResult = {
 	id: string;
+	display_name: string;
+	aliases: Array<{ alias: string; is_primary: boolean }>;
 	channels: ChannelInfo[];
 	total_requests: number;
 	total_tokens: number;
@@ -129,6 +132,9 @@ models.get("/", async (c) => {
 		channelLatencyMap.set(`${row.model}:${row.channel_id}`, row.avg_latency_ms);
 	}
 
+	// Load aliases for display_name
+	const aliasMap = await listAllAliases(c.env.DB);
+
 	// Build result
 	const results: ModelResult[] = [];
 	for (const [modelId, channelInfos] of modelMap) {
@@ -142,8 +148,14 @@ models.get("/", async (c) => {
 					: null,
 		}));
 
+		const aliases = aliasMap.get(modelId) ?? [];
+		const primary = aliases.find((a) => a.is_primary);
+		const displayName = primary ? primary.alias : modelId;
+
 		results.push({
 			id: modelId,
+			display_name: displayName,
+			aliases,
 			channels: enrichedChannels,
 			total_requests: usage?.total_requests ?? 0,
 			total_tokens: usage?.total_tokens ?? 0,

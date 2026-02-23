@@ -577,6 +577,25 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 		}
 	}, [loadUsage]);
 
+	const handleAliasSave = useCallback(
+		async (
+			modelId: string,
+			aliases: Array<{ alias: string; is_primary: boolean }>,
+		) => {
+			try {
+				await apiFetch(`/api/model-aliases/${encodeURIComponent(modelId)}`, {
+					method: "PUT",
+					body: JSON.stringify({ aliases }),
+				});
+				await loadModels();
+				setNotice("别名已保存");
+			} catch (error) {
+				setNotice((error as Error).message);
+			}
+		},
+		[apiFetch, loadModels],
+	);
+
 	const handleMonitoringLoaded = useCallback(
 		(monitoring: MonitoringData) => {
 			setData((prev) => ({ ...prev, monitoring }));
@@ -723,7 +742,7 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 			);
 		}
 		if (activeTab === "models") {
-			return <ModelsView models={data.models} />;
+			return <ModelsView models={data.models} onAliasSave={handleAliasSave} />;
 		}
 		if (activeTab === "tokens") {
 			return (

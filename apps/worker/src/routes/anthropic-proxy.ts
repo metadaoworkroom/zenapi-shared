@@ -3,6 +3,7 @@ import type { AppEnv } from "../env";
 import { type TokenRecord, tokenAuth } from "../middleware/tokenAuth";
 import { type ChannelRecord, createWeightedOrder } from "../services/channels";
 import { resolveChannelRoute } from "../services/channel-route";
+import { resolveModelNames } from "../services/model-aliases";
 import {
 	anthropicToOpenaiRequest,
 	createOpenaiToAnthropicStreamTransform,
@@ -22,7 +23,7 @@ import {
 	parseUsageFromHeaders,
 	parseUsageFromSse,
 } from "../utils/usage";
-import { channelSupportsModel, channelSupportsSharedModel, filterAllowedChannels } from "./proxy";
+import { channelSupportsModel, channelSupportsSharedModel, channelSupportsAnyModel, channelSupportsAnySharedModel, filterAllowedChannels, findChannelModelName } from "./proxy";
 
 const anthropicProxy = new Hono<AppEnv>();
 
@@ -46,6 +47,9 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 			: null;
 	const isStream = parsedBody?.stream === true;
 
+	// Resolve model aliases — returns all model IDs this name can route to
+	const resolvedNames = model ? await resolveModelNames(c.env.DB, model) : [];
+
 	// Convert Anthropic request -> OpenAI format for internal use
 	const openaiBody = parsedBody ? anthropicToOpenaiRequest(parsedBody) : null;
 
@@ -59,7 +63,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 	const siteMode = await getSiteMode(c.env.DB);
 	const useSharedFilter = siteMode === "shared" && !!tokenRecord.user_id;
 
-	// Resolve channel/model routing syntax
+	// Resolve channel/model routing syntax (uses original model name)
 	const { targetChannel, actualModel } = resolveChannelRoute(model, activeChannels);
 	const effectiveModel = targetChannel ? actualModel : model;
 
@@ -81,16 +85,32 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 		candidates = [targetChannel];
 	} else {
 		const allowedChannels = filterAllowedChannels(activeChannels, tokenRecord);
-		const supportsFn = useSharedFilter
-			? channelSupportsSharedModel
-			: channelSupportsModel;
-		const modelChannels = allowedChannels.filter((channel) =>
-			supportsFn(channel, model),
-		);
-		candidates = modelChannels.length > 0 ? modelChannels : (useSharedFilter ? [] : allowedChannels);
+		if (resolvedNames.length > 0) {
+			const supportsFn = useSharedFilter
+				? channelSupportsAnySharedModel
+				: channelSupportsAnyModel;
+			candidates = allowedChannels.filter((channel) =>
+				supportsFn(channel, resolvedNames),
+			);
+		} else {
+			const supportsFn = useSharedFilter
+				? channelSupportsSharedModel
+				: channelSupportsModel;
+			candidates = allowedChannels.filter((channel) =>
+				supportsFn(channel, null),
+			);
+		}
 	}
 
 	if (candidates.length === 0) {
+		if (model) {
+			return jsonError(
+				c,
+				404,
+				"model_not_found",
+				`The model '${model}' does not exist or is not available.`,
+			);
+		}
 		return jsonError(c, 503, "no_available_channels", "no_available_channels");
 	}
 
@@ -112,6 +132,20 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 			const keys = shuffleArray(parseApiKeys(channel.api_key));
 			let channelRetryable = false;
 
+			// Determine the model name this channel actually supports
+			let channelRequestText = effectiveRequestText;
+			let channelOpenaiBody = openaiBody;
+			if (!targetChannel && resolvedNames.length > 1 && parsedBody) {
+				const channelModelName = findChannelModelName(channel, resolvedNames);
+				if (channelModelName !== model) {
+					const channelParsedBody = { ...parsedBody, model: channelModelName };
+					channelRequestText = JSON.stringify(channelParsedBody);
+					if (openaiBody) {
+						channelOpenaiBody = { ...openaiBody, model: channelModelName };
+					}
+				}
+			}
+
 			for (const apiKey of keys) {
 				try {
 					let response: Response;
@@ -131,7 +165,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 						response = await fetch(target, {
 							method: "POST",
 							headers,
-							body: effectiveRequestText,
+							body: channelRequestText,
 						});
 
 						if (response.ok) {
@@ -147,9 +181,9 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 						headers.set("Authorization", `Bearer ${apiKey}`);
 						headers.set("content-type", "application/json");
 
-						const bodyToSend = openaiBody
-							? JSON.stringify(openaiBody)
-							: effectiveRequestText;
+						const bodyToSend = channelOpenaiBody
+							? JSON.stringify(channelOpenaiBody)
+							: channelRequestText;
 
 						response = await fetch(target, {
 							method: "POST",
@@ -207,7 +241,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 						response = await fetch(target, {
 							method: "POST",
 							headers,
-							body: effectiveRequestText,
+							body: channelRequestText,
 						});
 
 						if (response.ok) {
