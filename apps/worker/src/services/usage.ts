@@ -15,6 +15,8 @@ export type UsageInput = {
 	stream?: boolean | number | null;
 	reasoningEffort?: string | number | null;
 	status?: string | null;
+	errorCode?: number | null;
+	errorMessage?: string | null;
 };
 
 /**
@@ -40,7 +42,7 @@ export async function recordUsage(
 			: String(input.reasoningEffort);
 	await db
 		.prepare(
-			"INSERT INTO usage_logs (id, token_id, channel_id, model, request_path, total_tokens, prompt_tokens, completion_tokens, cost, latency_ms, first_token_latency_ms, stream, reasoning_effort, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO usage_logs (id, token_id, channel_id, model, request_path, total_tokens, prompt_tokens, completion_tokens, cost, latency_ms, first_token_latency_ms, stream, reasoning_effort, status, error_code, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
 		.bind(
 			id,
@@ -57,6 +59,8 @@ export async function recordUsage(
 			streamValue,
 			reasoningValue,
 			input.status ?? "ok",
+			input.errorCode ?? null,
+			input.errorMessage ?? null,
 			createdAt,
 		)
 		.run();

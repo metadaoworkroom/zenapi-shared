@@ -86,6 +86,16 @@ export type MonitoringDailyTrend = {
 	avg_latency_ms: number;
 };
 
+export type MonitoringErrorDetail = {
+	id: string;
+	model: string | null;
+	channel_id: string | null;
+	error_code: number | null;
+	error_message: string | null;
+	latency_ms: number | null;
+	created_at: string;
+};
+
 export type MonitoringData = {
 	summary: {
 		total_requests: number;

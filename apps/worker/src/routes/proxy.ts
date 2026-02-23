@@ -531,6 +531,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 			stream: isStream,
 			reasoningEffort,
 			status: "error",
+			errorMessage: "upstream_unavailable",
 		});
 		return jsonError(c, 502, "upstream_unavailable", "upstream_unavailable");
 	}
@@ -538,6 +539,17 @@ proxy.all("/*", tokenAuth, async (c) => {
 	const channelForUsage = selectedChannel ?? lastChannel;
 	if (channelForUsage && lastResponse) {
 		const price = getModelPrice(channelForUsage.models_json, selectedModelName ?? "");
+		let errorCode: number | null = null;
+		let errorMessage: string | null = null;
+		if (!lastResponse.ok) {
+			errorCode = lastResponse.status;
+			try {
+				const errText = await lastResponse.clone().text();
+				errorMessage = errText.slice(0, 512);
+			} catch {
+				errorMessage = null;
+			}
+		}
 		const record = async (
 			usage: NormalizedUsage | null,
 			firstTokenLatencyMs?: number | null,
@@ -566,6 +578,8 @@ proxy.all("/*", tokenAuth, async (c) => {
 				stream: isStream,
 				reasoningEffort,
 				status: lastResponse.ok ? "ok" : "error",
+				errorCode,
+				errorMessage,
 			});
 			// Deduct user balance
 			if (cost > 0 && tokenRecord.user_id) {

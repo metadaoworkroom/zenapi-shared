@@ -6,8 +6,8 @@ const monitoring = new Hono<AppEnv>();
 const RANGE_CONFIG: Record<string, { ms: number; sqlSlice: number }> = {
 	"15m": { ms: 15 * 60_000, sqlSlice: 16 },
 	"1h": { ms: 60 * 60_000, sqlSlice: 16 },
-	"1d": { ms: 86_400_000, sqlSlice: 10 },
-	"7d": { ms: 7 * 86_400_000, sqlSlice: 10 },
+	"1d": { ms: 86_400_000, sqlSlice: 13 },
+	"7d": { ms: 7 * 86_400_000, sqlSlice: 13 },
 	"30d": { ms: 30 * 86_400_000, sqlSlice: 10 },
 };
 
@@ -178,6 +178,42 @@ monitoring.get("/", async (c) => {
 		dailyTrends,
 		range,
 	});
+});
+
+monitoring.get("/errors", async (c) => {
+	const slot = c.req.query("slot");
+	const channelId = c.req.query("channel_id");
+	const range = c.req.query("range") ?? "7d";
+
+	if (!slot || !channelId) {
+		return c.json({ errors: [] });
+	}
+
+	const config = RANGE_CONFIG[range] ?? RANGE_CONFIG["7d"];
+
+	const rows = await c.env.DB.prepare(
+		`SELECT id, model, channel_id, error_code, error_message, latency_ms, created_at
+		FROM usage_logs
+		WHERE substr(created_at, 1, ${config.sqlSlice}) = ?
+			AND channel_id = ?
+			AND status != 'ok'
+		ORDER BY created_at DESC
+		LIMIT 50`,
+	)
+		.bind(slot, channelId)
+		.all();
+
+	const errors = (rows.results ?? []).map((row) => ({
+		id: row.id,
+		model: row.model,
+		channel_id: row.channel_id,
+		error_code: row.error_code ?? null,
+		error_message: row.error_message ?? null,
+		latency_ms: row.latency_ms,
+		created_at: row.created_at,
+	}));
+
+	return c.json({ errors });
 });
 
 export default monitoring;
