@@ -244,9 +244,8 @@ export const SettingsView = ({
 				</p>
 			</div>
 			)}
-			{settingsForm.site_mode === "shared" && settingsForm.channel_fee_enabled === "true" && (
-			<>
-			<div class="lg:col-span-2">
+			{settingsForm.site_mode !== "personal" && (
+			<div class="lg:col-span-2 border-t border-stone-100 pt-4 mt-1">
 				<label class="flex items-center gap-2 text-sm text-stone-700">
 					<input
 						type="checkbox"
@@ -265,7 +264,8 @@ export const SettingsView = ({
 					允许用户将可提现余额（渠道收益和充值所得）兑换为 LDC 积分
 				</p>
 			</div>
-			{settingsForm.withdrawal_enabled === "true" && (
+			)}
+			{settingsForm.site_mode !== "personal" && settingsForm.withdrawal_enabled === "true" && (
 			<div>
 				<label
 					class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500"
@@ -290,8 +290,6 @@ export const SettingsView = ({
 					}}
 				/>
 			</div>
-			)}
-			</>
 			)}
 			{settingsForm.site_mode !== "personal" && (
 			<>
