@@ -3,6 +3,7 @@ import type { AppEnv } from "../env";
 import {
 	getCheckinReward,
 	getChannelFeeEnabled,
+	getDefaultBalance,
 	getWithdrawalEnabled,
 	getWithdrawalFeeRate,
 	getLdcEpayGateway,
@@ -19,6 +20,7 @@ import {
 	setAdminPasswordHash,
 	setCheckinReward,
 	setChannelFeeEnabled,
+	setDefaultBalance,
 	setWithdrawalEnabled,
 	setWithdrawalFeeRate,
 	setLdcEpayGateway,
@@ -56,6 +58,7 @@ settings.get("/", async (c) => {
 	const ldcEpayGateway = await getLdcEpayGateway(c.env.DB);
 	const ldcExchangeRate = await getLdcExchangeRate(c.env.DB);
 	const channelFeeEnabled = await getChannelFeeEnabled(c.env.DB);
+	const defaultBalance = await getDefaultBalance(c.env.DB);
 	const withdrawalEnabled = await getWithdrawalEnabled(c.env.DB);
 	const withdrawalFeeRate = await getWithdrawalFeeRate(c.env.DB);
 	return c.json({
@@ -72,6 +75,7 @@ settings.get("/", async (c) => {
 		ldc_epay_gateway: ldcEpayGateway,
 		ldc_exchange_rate: ldcExchangeRate,
 		channel_fee_enabled: channelFeeEnabled,
+		default_balance: defaultBalance,
 		withdrawal_enabled: withdrawalEnabled,
 		withdrawal_fee_rate: withdrawalFeeRate,
 	});
@@ -208,6 +212,20 @@ settings.put("/", async (c) => {
 	if (body.channel_fee_enabled !== undefined) {
 		const value = body.channel_fee_enabled === true || body.channel_fee_enabled === "true";
 		await setChannelFeeEnabled(c.env.DB, value);
+		touched = true;
+	}
+
+	if (body.default_balance !== undefined) {
+		const amount = Number(body.default_balance);
+		if (Number.isNaN(amount) || amount < 0) {
+			return jsonError(
+				c,
+				400,
+				"invalid_default_balance",
+				"invalid_default_balance",
+			);
+		}
+		await setDefaultBalance(c.env.DB, amount);
 		touched = true;
 	}
 

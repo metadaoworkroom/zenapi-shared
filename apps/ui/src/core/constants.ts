@@ -57,6 +57,7 @@ export const initialSettingsForm: SettingsForm = {
 	checkin_reward: "0.5",
 	require_invite_code: "false",
 	channel_fee_enabled: "false",
+	default_balance: "0",
 	withdrawal_enabled: "false",
 	withdrawal_fee_rate: "0",
 	ldc_payment_enabled: "false",

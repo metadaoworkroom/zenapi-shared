@@ -205,6 +205,29 @@ export const SettingsView = ({
 					}}
 				/>
 			</div>
+			<div>
+				<label
+					class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500"
+					for="default-balance"
+				>
+					新用户初始额度
+				</label>
+				<input
+					class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+					id="default-balance"
+					name="default_balance"
+					type="number"
+					min="0"
+					step="0.01"
+					value={settingsForm.default_balance}
+					onInput={(event) => {
+						const target = event.currentTarget as HTMLInputElement | null;
+						onFormChange({
+							default_balance: target?.value ?? "",
+						});
+					}}
+				/>
+			</div>
 			<div class="flex items-end">
 				<label class="flex items-center gap-2 text-sm text-stone-700">
 					<input

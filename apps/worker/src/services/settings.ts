@@ -359,3 +359,28 @@ export async function setWithdrawalFeeRate(
 	const value = Math.max(0, Math.min(100, rate)).toString();
 	await upsertSetting(db, WITHDRAWAL_FEE_RATE_KEY, value);
 }
+
+// Default balance for new users
+const DEFAULT_BALANCE_KEY = "default_balance";
+
+/**
+ * Returns the default balance for new users.
+ */
+export async function getDefaultBalance(db: D1Database): Promise<number> {
+	const value = await readSetting(db, DEFAULT_BALANCE_KEY);
+	if (!value) return 0;
+	const parsed = Number(value);
+	if (!Number.isNaN(parsed) && parsed >= 0) return parsed;
+	return 0;
+}
+
+/**
+ * Updates the default balance for new users.
+ */
+export async function setDefaultBalance(
+	db: D1Database,
+	amount: number,
+): Promise<void> {
+	const value = Math.max(0, amount).toString();
+	await upsertSetting(db, DEFAULT_BALANCE_KEY, value);
+}

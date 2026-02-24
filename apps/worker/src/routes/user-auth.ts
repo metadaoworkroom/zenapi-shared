@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import type { UserRecord } from "../middleware/userAuth";
 import { userAuth } from "../middleware/userAuth";
-import { getRegistrationMode, getRequireInviteCode, getSiteMode } from "../services/settings";
+import { getDefaultBalance, getRegistrationMode, getRequireInviteCode, getSiteMode } from "../services/settings";
 import { generateToken, sha256Hex } from "../utils/crypto";
 import { jsonError } from "../utils/http";
 import { addHours, nowIso } from "../utils/time";
@@ -75,7 +75,7 @@ userAuthRoutes.post("/register", async (c) => {
 	const id = crypto.randomUUID();
 	const passwordHash = await sha256Hex(password);
 	const now = nowIso();
-	const defaultBalance = siteMode === "shared" ? 100 : 0;
+	const defaultBalance = await getDefaultBalance(c.env.DB);
 
 	await c.env.DB.prepare(
 		"INSERT INTO users (id, email, name, password_hash, role, balance, status, invite_code_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -504,7 +504,7 @@ userAuthRoutes.get("/linuxdo/callback", async (c) => {
 		const displayName = linuxdoUser.name || linuxdoUser.username;
 		// Random password hash so password login is disabled
 		const passwordHash = await sha256Hex(generateToken("pwd_"));
-		const defaultBalance = siteMode === "shared" ? 100 : 0;
+		const defaultBalance = await getDefaultBalance(c.env.DB);
 
 		// Check if username already taken, append suffix if so
 		let finalName = displayName;

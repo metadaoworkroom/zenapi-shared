@@ -140,6 +140,7 @@ export type Settings = {
 	checkin_reward: number;
 	require_invite_code: boolean;
 	channel_fee_enabled: boolean;
+	default_balance: number;
 	withdrawal_enabled: boolean;
 	withdrawal_fee_rate: number;
 	ldc_payment_enabled: boolean;
@@ -213,6 +214,7 @@ export type SettingsForm = {
 	checkin_reward: string;
 	require_invite_code: string;
 	channel_fee_enabled: string;
+	default_balance: string;
 	withdrawal_enabled: string;
 	withdrawal_fee_rate: string;
 	ldc_payment_enabled: string;
