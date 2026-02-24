@@ -321,7 +321,7 @@ export const SettingsView = ({
 					name="ldc_exchange_rate"
 					type="number"
 					min="0.001"
-					step="0.01"
+					step="any"
 					value={settingsForm.ldc_exchange_rate}
 					onInput={(event) => {
 						const target = event.currentTarget as HTMLInputElement | null;
