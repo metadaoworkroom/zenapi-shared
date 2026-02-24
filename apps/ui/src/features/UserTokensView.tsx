@@ -1,13 +1,13 @@
 import { useState } from "hono/jsx/dom";
-import type { Token } from "../core/types";
+import type { PublicModelItem, Token } from "../core/types";
 import { formatDateTime } from "../core/utils";
 
 type UserTokensViewProps = {
 	tokens: Token[];
-	onCreate: (name: string, allowedChannels?: string[]) => void;
+	onCreate: (name: string, allowedChannels?: Record<string, string[]>) => void;
 	onDelete: (id: string) => void;
 	onReveal: (id: string) => void;
-	availableChannels?: Array<{ id: string; name: string }>;
+	models?: PublicModelItem[];
 	channelSelectionEnabled?: boolean;
 };
 
@@ -16,35 +16,69 @@ export const UserTokensView = ({
 	onCreate,
 	onDelete,
 	onReveal,
-	availableChannels,
+	models,
 	channelSelectionEnabled,
 }: UserTokensViewProps) => {
 	const [showModal, setShowModal] = useState(false);
 	const [tokenName, setTokenName] = useState("");
-	const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+	// per-model channel selection: { modelId: [channelId, ...] }
+	const [selectedMap, setSelectedMap] = useState<Record<string, string[]>>({});
+	const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
+	const [modelSearch, setModelSearch] = useState("");
 
 	const handleCreate = (e: Event) => {
 		e.preventDefault();
 		if (!tokenName.trim()) return;
-		onCreate(tokenName.trim(), selectedChannels.length > 0 ? selectedChannels : undefined);
+		// Build cleaned map (only entries with selections)
+		const cleaned: Record<string, string[]> = {};
+		for (const [modelId, chIds] of Object.entries(selectedMap)) {
+			if (chIds.length > 0) cleaned[modelId] = chIds;
+		}
+		onCreate(tokenName.trim(), Object.keys(cleaned).length > 0 ? cleaned : undefined);
 		setTokenName("");
-		setSelectedChannels([]);
+		setSelectedMap({});
+		setExpandedModels(new Set());
+		setModelSearch("");
 		setShowModal(false);
 	};
 
-	const toggleChannel = (id: string) => {
-		setSelectedChannels((prev) =>
-			prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
-		);
+	const toggleModelChannel = (modelId: string, channelId: string) => {
+		setSelectedMap((prev) => {
+			const current = prev[modelId] ?? [];
+			const next = current.includes(channelId)
+				? current.filter((c) => c !== channelId)
+				: [...current, channelId];
+			return { ...prev, [modelId]: next };
+		});
 	};
 
-	const showChannelSelection = channelSelectionEnabled && availableChannels && availableChannels.length > 0;
+	const toggleModelExpand = (modelId: string) => {
+		setExpandedModels((prev) => {
+			const next = new Set(prev);
+			if (next.has(modelId)) next.delete(modelId);
+			else next.add(modelId);
+			return next;
+		});
+	};
 
-	const parseAllowedChannels = (val: string | null | undefined): string[] | null => {
+	// Only show models with multiple channels (single-channel = no choice)
+	const multiChannelModels = (models ?? []).filter((m) => m.channels.length > 1);
+	const showChannelSelection = channelSelectionEnabled && multiChannelModels.length > 0;
+
+	const filteredModels = modelSearch
+		? multiChannelModels.filter((m) => m.id.toLowerCase().includes(modelSearch.toLowerCase()))
+		: multiChannelModels;
+
+	const configuredModelCount = Object.values(selectedMap).filter((v) => v.length > 0).length;
+
+	const parseAllowedChannels = (val: string | null | undefined): Record<string, string[]> | null => {
 		if (!val) return null;
 		try {
 			const parsed = JSON.parse(val);
-			return Array.isArray(parsed) ? parsed : null;
+			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+				return parsed as Record<string, string[]>;
+			}
+			return null;
 		} catch {
 			return null;
 		}
@@ -82,7 +116,7 @@ export const UserTokensView = ({
 								<th class="pb-2 pr-4 font-medium">名称</th>
 								<th class="pb-2 pr-4 font-medium">前缀</th>
 								<th class="pb-2 pr-4 font-medium">已用配额</th>
-								<th class="pb-2 pr-4 font-medium">渠道</th>
+								<th class="pb-2 pr-4 font-medium">渠道限定</th>
 								<th class="pb-2 pr-4 font-medium">状态</th>
 								<th class="pb-2 pr-4 font-medium">创建时间</th>
 								<th class="pb-2 font-medium">操作</th>
@@ -90,7 +124,8 @@ export const UserTokensView = ({
 						</thead>
 						<tbody>
 							{tokens.map((token) => {
-								const channels = parseAllowedChannels(token.allowed_channels);
+								const channelMap = parseAllowedChannels(token.allowed_channels);
+								const modelCount = channelMap ? Object.keys(channelMap).length : 0;
 								return (
 								<tr class="border-b border-stone-50">
 									<td class="py-2.5 pr-4 font-medium text-stone-700">
@@ -106,9 +141,9 @@ export const UserTokensView = ({
 											: " / 无限"}
 									</td>
 									<td class="py-2.5 pr-4">
-										{channels ? (
+										{modelCount > 0 ? (
 											<span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-600">
-												{channels.length} 个渠道
+												{modelCount} 个模型
 											</span>
 										) : (
 											<span class="text-xs text-stone-400">全部</span>
@@ -164,7 +199,7 @@ export const UserTokensView = ({
 						class="absolute inset-0 bg-stone-900/40"
 						onClick={() => setShowModal(false)}
 					/>
-					<div class="relative z-10 w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-xl">
+					<div class={`relative z-10 w-full ${showChannelSelection ? "max-w-2xl" : "max-w-md"} max-h-[90vh] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-6 shadow-xl`}>
 						<h3 class="mb-4 font-['Space_Grotesk'] text-lg tracking-tight text-stone-900">
 							创建令牌
 						</h3>
@@ -192,30 +227,86 @@ export const UserTokensView = ({
 							</div>
 							{showChannelSelection && (
 							<div class="mb-4">
-								<label class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500">
-									限定渠道（可选）
-								</label>
-								<p class="mb-2 text-xs text-stone-400">
-									不选择则使用全部可用渠道
-								</p>
-								<div class="max-h-48 overflow-y-auto rounded-lg border border-stone-200 p-2 space-y-1">
-									{availableChannels!.map((ch) => (
-										<label key={ch.id} class="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-50 cursor-pointer">
-											<input
-												type="checkbox"
-												class="h-4 w-4 rounded border-stone-300 text-amber-500 focus:ring-amber-400"
-												checked={selectedChannels.includes(ch.id)}
-												onChange={() => toggleChannel(ch.id)}
-											/>
-											{ch.name}
-										</label>
-									))}
+								<div class="mb-1.5 flex items-center justify-between">
+									<label class="block text-xs uppercase tracking-widest text-stone-500">
+										按模型限定渠道（可选）
+									</label>
+									{configuredModelCount > 0 && (
+										<span class="text-xs text-amber-600">
+											已配置 {configuredModelCount} 个模型
+										</span>
+									)}
 								</div>
-								{selectedChannels.length > 0 && (
-									<p class="mt-1 text-xs text-amber-600">
-										已选择 {selectedChannels.length} 个渠道
-									</p>
+								<p class="mb-2 text-xs text-stone-400">
+									展开模型后勾选该模型允许使用的渠道，未配置的模型使用全部可用渠道
+								</p>
+								{multiChannelModels.length > 8 && (
+									<input
+										class="mb-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+										type="text"
+										placeholder="搜索模型..."
+										value={modelSearch}
+										onInput={(e) =>
+											setModelSearch(
+												(e.currentTarget as HTMLInputElement)?.value ?? "",
+											)
+										}
+									/>
 								)}
+								<div class="max-h-64 overflow-y-auto rounded-lg border border-stone-200">
+									{filteredModels.map((model) => {
+										const isExpanded = expandedModels.has(model.id);
+										const selected = selectedMap[model.id] ?? [];
+										return (
+											<div key={model.id} class="border-b border-stone-100 last:border-b-0">
+												<button
+													type="button"
+													class="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-stone-50"
+													onClick={() => toggleModelExpand(model.id)}
+												>
+													<span class="truncate font-medium text-stone-700">
+														{model.id}
+													</span>
+													<span class="flex shrink-0 items-center gap-2 pl-2">
+														{selected.length > 0 && (
+															<span class="rounded-full bg-amber-50 px-1.5 py-0.5 text-xs text-amber-600">
+																{selected.length}/{model.channels.length}
+															</span>
+														)}
+														<span class="text-xs text-stone-400">
+															{isExpanded ? "▲" : "▼"}
+														</span>
+													</span>
+												</button>
+												{isExpanded && (
+													<div class="bg-stone-50 px-3 pb-2 pt-1 space-y-0.5">
+														{model.channels.map((ch) => (
+															<label key={ch.id} class="flex items-center gap-2 rounded px-2 py-1 text-xs text-stone-600 hover:bg-white cursor-pointer">
+																<input
+																	type="checkbox"
+																	class="h-3.5 w-3.5 rounded border-stone-300 text-amber-500 focus:ring-amber-400"
+																	checked={selected.includes(ch.id)}
+																	onChange={() => toggleModelChannel(model.id, ch.id)}
+																/>
+																<span class="truncate">{ch.name}</span>
+																{(ch.input_price != null || ch.output_price != null) && (
+																	<span class="ml-auto shrink-0 text-stone-400">
+																		${ch.input_price ?? "-"} / ${ch.output_price ?? "-"}
+																	</span>
+																)}
+															</label>
+														))}
+													</div>
+												)}
+											</div>
+										);
+									})}
+									{filteredModels.length === 0 && (
+										<p class="py-4 text-center text-xs text-stone-400">
+											{modelSearch ? "未找到匹配的模型" : "无可配置的模型"}
+										</p>
+									)}
+								</div>
 							</div>
 							)}
 							<div class="flex justify-end gap-3">

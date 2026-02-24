@@ -209,10 +209,10 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 	}, [apiFetch, onUserRefresh]);
 
 	const handleTokenCreate = useCallback(
-		async (name: string, allowedChannels?: string[]) => {
+		async (name: string, allowedChannels?: Record<string, string[]>) => {
 			try {
 				const body: Record<string, unknown> = { name };
-				if (allowedChannels && allowedChannels.length > 0) {
+				if (allowedChannels && Object.keys(allowedChannels).length > 0) {
 					body.allowed_channels = allowedChannels;
 				}
 				const result = await apiFetch<{ token: string }>("/api/u/tokens", {
@@ -276,18 +276,6 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 		return userTabs;
 	}, [siteMode]);
 
-	const availableChannels = useMemo(() => {
-		const channelMap = new Map<string, string>();
-		for (const model of models) {
-			for (const ch of model.channels) {
-				if (!channelMap.has(ch.id)) {
-					channelMap.set(ch.id, ch.name);
-				}
-			}
-		}
-		return Array.from(channelMap.entries()).map(([id, name]) => ({ id, name }));
-	}, [models]);
-
 	const activeLabel = useMemo(
 		() => visibleTabs.find((tab) => tab.id === activeTab)?.label ?? "用户面板",
 		[activeTab, visibleTabs],
@@ -314,7 +302,7 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 					onCreate={handleTokenCreate}
 					onDelete={handleTokenDelete}
 					onReveal={handleTokenReveal}
-					availableChannels={availableChannels}
+					models={models}
 					channelSelectionEnabled={dashboardData?.user_channel_selection_enabled}
 				/>
 			);

@@ -119,12 +119,22 @@ userApi.post("/tokens", async (c) => {
 	}
 
 	let allowedChannels: string | null = null;
-	if (body.allowed_channels && Array.isArray(body.allowed_channels) && body.allowed_channels.length > 0) {
+	if (body.allowed_channels && typeof body.allowed_channels === "object" && !Array.isArray(body.allowed_channels)) {
 		const channelSelectionEnabled = await getUserChannelSelectionEnabled(c.env.DB);
 		if (!channelSelectionEnabled) {
 			return jsonError(c, 403, "channel_selection_disabled", "channel_selection_disabled");
 		}
-		allowedChannels = JSON.stringify(body.allowed_channels);
+		// Validate: Record<string, string[]>
+		const map = body.allowed_channels as Record<string, unknown>;
+		const cleaned: Record<string, string[]> = {};
+		for (const [modelId, chIds] of Object.entries(map)) {
+			if (Array.isArray(chIds) && chIds.length > 0) {
+				cleaned[modelId] = chIds.filter((v: unknown) => typeof v === "string");
+			}
+		}
+		if (Object.keys(cleaned).length > 0) {
+			allowedChannels = JSON.stringify(cleaned);
+		}
 	}
 
 	const rawToken = generateToken("sk-");

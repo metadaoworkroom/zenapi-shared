@@ -88,7 +88,7 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 		}
 		candidates = [targetChannel];
 	} else {
-		const allowedChannels = filterAllowedChannels(activeChannels, tokenRecord);
+		const allowedChannels = filterAllowedChannels(activeChannels, tokenRecord, model);
 		if (model) {
 			const supportsFn = useSharedFilter
 				? channelSupportsSharedModel

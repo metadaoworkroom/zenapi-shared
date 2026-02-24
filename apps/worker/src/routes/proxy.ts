@@ -68,16 +68,30 @@ export function channelSupportsSharedModel(
 export function filterAllowedChannels(
 	channels: ChannelRecord[],
 	tokenRecord: TokenRecord,
+	model?: string | null,
 ): ChannelRecord[] {
-	const allowed = safeJsonParse<string[] | null>(
+	const raw = safeJsonParse<string[] | Record<string, string[]> | null>(
 		tokenRecord.allowed_channels,
 		null,
 	);
-	if (!allowed || allowed.length === 0) {
+	if (!raw) {
 		return channels;
 	}
-	const allowedSet = new Set(allowed);
-	return channels.filter((channel) => allowedSet.has(channel.id));
+	// Legacy flat array format: ["ch1", "ch2"]
+	if (Array.isArray(raw)) {
+		if (raw.length === 0) return channels;
+		const allowedSet = new Set(raw);
+		return channels.filter((channel) => allowedSet.has(channel.id));
+	}
+	// Per-model map format: { "model-a": ["ch1", "ch2"] }
+	if (typeof raw === "object") {
+		if (!model) return channels;
+		const perModel = raw[model];
+		if (!perModel || perModel.length === 0) return channels;
+		const allowedSet = new Set(perModel);
+		return channels.filter((channel) => allowedSet.has(channel.id));
+	}
+	return channels;
 }
 
 // Chat endpoint paths — only these are compatible with anthropic-format channels
@@ -202,14 +216,25 @@ proxy.get("/models", tokenAuth, async (c) => {
 		.bind("active")
 		.all();
 	const activeChannels = (channelResult.results ?? []) as ChannelRecord[];
-	const allowed = filterAllowedChannels(activeChannels, tokenRecord);
+
+	// Parse allowed_channels once for per-model filtering
+	const rawAllowed = safeJsonParse<string[] | Record<string, string[]> | null>(
+		tokenRecord.allowed_channels,
+		null,
+	);
+	const isPerModelMap = rawAllowed !== null && !Array.isArray(rawAllowed) && typeof rawAllowed === "object";
+
+	// For legacy flat-array format, pre-filter channels once
+	const baseAllowed = isPerModelMap
+		? activeChannels
+		: filterAllowedChannels(activeChannels, tokenRecord);
 
 	const siteMode = await getSiteMode(c.env.DB);
 	const useSharedFilter = siteMode === "shared" && !!tokenRecord.user_id;
 
 	// Build per-channel model ID sets
 	const channelModelIds = new Map<string, string[]>();
-	for (const ch of allowed) {
+	for (const ch of baseAllowed) {
 		const chModelIds = useSharedFilter
 			? extractSharedModelPricings(ch).filter((m) => m.enabled !== false).map((m) => m.id)
 			: extractModelIds(ch);
@@ -224,11 +249,17 @@ proxy.get("/models", tokenAuth, async (c) => {
 	const modelData: Array<{ id: string; object: string; created: number; owned_by: string }> = [];
 	const seen = new Set<string>();
 
-	for (const ch of allowed) {
+	for (const ch of baseAllowed) {
 		const modelIds = channelModelIds.get(ch.id) ?? [];
 		const chAliases = aliasGroups.get(ch.id);
 
 		for (const modelId of modelIds) {
+			// Per-model channel restriction: skip if this channel is not allowed for this model
+			if (isPerModelMap) {
+				const perModel = (rawAllowed as Record<string, string[]>)[modelId];
+				if (perModel && perModel.length > 0 && !perModel.includes(ch.id)) continue;
+			}
+
 			const aliasInfo = chAliases?.get(modelId);
 			const isAliasOnly = aliasInfo?.alias_only ?? false;
 
@@ -335,7 +366,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 		}
 		candidates = [targetChannel];
 	} else {
-		const allowedChannels = filterAllowedChannels(activeChannels, tokenRecord);
+		const allowedChannels = filterAllowedChannels(activeChannels, tokenRecord, model);
 		if (model) {
 			const supportsFn = useSharedFilter
 				? channelSupportsSharedModel
