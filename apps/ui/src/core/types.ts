@@ -11,6 +11,7 @@ export type Channel = {
 	api_format: ChannelApiFormat;
 	custom_headers_json?: string | null;
 	contributed_by?: string | null;
+	charge_enabled?: number | null;
 };
 
 export type Token = {
@@ -138,6 +139,7 @@ export type Settings = {
 	registration_mode: RegistrationMode;
 	checkin_reward: number;
 	require_invite_code: boolean;
+	channel_fee_enabled: boolean;
 	ldc_payment_enabled: boolean;
 	ldc_epay_pid: string;
 	ldc_epay_key: string;
@@ -208,6 +210,7 @@ export type SettingsForm = {
 	registration_mode: RegistrationMode;
 	checkin_reward: string;
 	require_invite_code: string;
+	channel_fee_enabled: string;
 	ldc_payment_enabled: string;
 	ldc_epay_pid: string;
 	ldc_epay_key: string;

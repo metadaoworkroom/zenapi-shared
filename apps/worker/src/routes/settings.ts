@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import {
 	getCheckinReward,
+	getChannelFeeEnabled,
 	getLdcEpayGateway,
 	getLdcEpayKey,
 	getLdcEpayPid,
@@ -15,6 +16,7 @@ import {
 	isAdminPasswordSet,
 	setAdminPasswordHash,
 	setCheckinReward,
+	setChannelFeeEnabled,
 	setLdcEpayGateway,
 	setLdcEpayKey,
 	setLdcEpayPid,
@@ -49,6 +51,7 @@ settings.get("/", async (c) => {
 	const ldcEpayKey = await getLdcEpayKey(c.env.DB);
 	const ldcEpayGateway = await getLdcEpayGateway(c.env.DB);
 	const ldcExchangeRate = await getLdcExchangeRate(c.env.DB);
+	const channelFeeEnabled = await getChannelFeeEnabled(c.env.DB);
 	return c.json({
 		log_retention_days: retention,
 		session_ttl_hours: sessionTtlHours,
@@ -62,6 +65,7 @@ settings.get("/", async (c) => {
 		ldc_epay_key: ldcEpayKey,
 		ldc_epay_gateway: ldcEpayGateway,
 		ldc_exchange_rate: ldcExchangeRate,
+		channel_fee_enabled: channelFeeEnabled,
 	});
 });
 
@@ -190,6 +194,12 @@ settings.put("/", async (c) => {
 			);
 		}
 		await setLdcExchangeRate(c.env.DB, rate);
+		touched = true;
+	}
+
+	if (body.channel_fee_enabled !== undefined) {
+		const value = body.channel_fee_enabled === true || body.channel_fee_enabled === "true";
+		await setChannelFeeEnabled(c.env.DB, value);
 		touched = true;
 	}
 

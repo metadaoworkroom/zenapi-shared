@@ -1,0 +1,1 @@
+ALTER TABLE channels ADD COLUMN charge_enabled INTEGER NOT NULL DEFAULT 0;

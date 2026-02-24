@@ -11,6 +11,7 @@ type ChannelItem = {
 	models_json?: string;
 	api_format: string;
 	status: string;
+	charge_enabled?: number | null;
 	created_at: string;
 };
 
@@ -20,6 +21,12 @@ type ChannelFormData = {
 	api_key: string;
 	api_format: ChannelApiFormat;
 	models: string;
+	charge_enabled: boolean;
+};
+
+type ModelPricingConfig = {
+	input_price: string;
+	output_price: string;
 };
 
 const emptyForm: ChannelFormData = {
@@ -28,6 +35,7 @@ const emptyForm: ChannelFormData = {
 	api_key: "",
 	api_format: "openai",
 	models: "",
+	charge_enabled: false,
 };
 
 function parseModelsJsonToText(modelsJson?: string): string {
@@ -52,6 +60,34 @@ function parseModelsJsonToText(modelsJson?: string): string {
 	}
 }
 
+function parseModelsPricing(modelsJson?: string): Record<string, ModelPricingConfig> {
+	if (!modelsJson) return {};
+	try {
+		const parsed = JSON.parse(modelsJson);
+		const arr = Array.isArray(parsed)
+			? parsed
+			: Array.isArray(parsed?.data)
+				? parsed.data
+				: [];
+		const result: Record<string, ModelPricingConfig> = {};
+		for (const m of arr) {
+			if (typeof m === "object" && m !== null && m.id) {
+				const ip = m.input_price;
+				const op = m.output_price;
+				if (ip != null || op != null) {
+					result[m.id] = {
+						input_price: ip != null ? String(ip) : "",
+						output_price: op != null ? String(op) : "",
+					};
+				}
+			}
+		}
+		return result;
+	} catch {
+		return {};
+	}
+}
+
 type UserChannelsViewProps = {
 	token: string;
 	updateToken: (next: string | null) => void;
@@ -73,6 +109,8 @@ export const UserChannelsView = ({
 	const [form, setForm] = useState<ChannelFormData>({ ...emptyForm });
 	// Per-model alias state: Record<modelId, { aliases, alias_only }>
 	const [aliasState, setAliasState] = useState<Record<string, ModelAliasConfig>>({});
+	// Per-model pricing state: Record<modelId, { input_price, output_price }>
+	const [pricingState, setPricingState] = useState<Record<string, ModelPricingConfig>>({});
 	// Track which models have their alias editor expanded
 	const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
 
@@ -85,6 +123,7 @@ export const UserChannelsView = ({
 		setEditingChannel(null);
 		setForm({ ...emptyForm });
 		setAliasState({});
+		setPricingState({});
 		setExpandedModels(new Set());
 		setShowModal(true);
 		setNotice("");
@@ -98,6 +137,7 @@ export const UserChannelsView = ({
 			api_key: ch.api_key ?? "",
 			api_format: (ch.api_format ?? "openai") as ChannelApiFormat,
 			models: parseModelsJsonToText(ch.models_json),
+			charge_enabled: ch.charge_enabled === 1,
 		});
 		// Initialize alias state from per-channel aliases for this channel
 		const perChannelMap = channelAliases[ch.id] ?? {};
@@ -115,6 +155,8 @@ export const UserChannelsView = ({
 			}
 		}
 		setAliasState(initial);
+		// Initialize pricing state from models_json
+		setPricingState(parseModelsPricing(ch.models_json));
 		setExpandedModels(new Set());
 		setShowModal(true);
 		setNotice("");
@@ -125,6 +167,7 @@ export const UserChannelsView = ({
 		setEditingChannel(null);
 		setForm({ ...emptyForm });
 		setAliasState({});
+		setPricingState({});
 		setExpandedModels(new Set());
 	}, []);
 
@@ -136,7 +179,15 @@ export const UserChannelsView = ({
 					.split("\n")
 					.map((l) => l.trim())
 					.filter(Boolean)
-					.map((id) => ({ id }));
+					.map((id) => {
+						const pricing = pricingState[id];
+						const entry: { id: string; input_price?: number; output_price?: number } = { id };
+						if (pricing) {
+							if (pricing.input_price !== "") entry.input_price = Number(pricing.input_price);
+							if (pricing.output_price !== "") entry.output_price = Number(pricing.output_price);
+						}
+						return entry;
+					});
 				// Build model_aliases payload: only include models that have aliases configured
 				const modelAliasPayload: Record<string, ModelAliasConfig> = {};
 				const modelIds = models.map((m) => m.id);
@@ -153,6 +204,7 @@ export const UserChannelsView = ({
 					api_format: form.api_format,
 					models: models.length > 0 ? models : undefined,
 					model_aliases: Object.keys(modelAliasPayload).length > 0 ? modelAliasPayload : undefined,
+					charge_enabled: form.charge_enabled,
 				};
 				if (editingChannel) {
 					await apiFetch(`/api/u/channels/${editingChannel.id}`, {
@@ -173,7 +225,7 @@ export const UserChannelsView = ({
 				setNotice((error as Error).message);
 			}
 		},
-		[apiFetch, form, aliasState, editingChannel, closeModal, onRefresh],
+		[apiFetch, form, aliasState, pricingState, editingChannel, closeModal, onRefresh],
 	);
 
 	const handleDelete = useCallback(
@@ -292,6 +344,7 @@ export const UserChannelsView = ({
 								<th class="pb-2 pr-4 font-medium">名称</th>
 								<th class="pb-2 pr-4 font-medium">格式</th>
 								<th class="pb-2 pr-4 font-medium">状态</th>
+								<th class="pb-2 pr-4 font-medium">收费</th>
 								<th class="pb-2 font-medium">操作</th>
 							</tr>
 						</thead>
@@ -315,6 +368,17 @@ export const UserChannelsView = ({
 											{ch.status === "active"
 												? "启用"
 												: "停用"}
+										</span>
+									</td>
+									<td class="py-2.5 pr-4">
+										<span
+											class={`rounded-full px-2 py-0.5 text-xs ${
+												ch.charge_enabled === 1
+													? "bg-amber-50 text-amber-600"
+													: "bg-stone-100 text-stone-400"
+											}`}
+										>
+											{ch.charge_enabled === 1 ? "已启用" : "未启用"}
 										</span>
 									</td>
 									<td class="py-2.5">
@@ -538,6 +602,46 @@ export const UserChannelsView = ({
 																	<span class="text-xs text-stone-400">— 隐藏原始模型名</span>
 																</label>
 															)}
+															{/* Per-model pricing */}
+															<div class="mt-2 flex items-center gap-2">
+																<span class="text-xs text-stone-500 whitespace-nowrap">价格 ($/M):</span>
+																<input
+																	type="number"
+																	class="w-20 rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-200"
+																	placeholder="输入"
+																	min="0"
+																	step="any"
+																	value={pricingState[modelId]?.input_price ?? ""}
+																	onInput={(e) => {
+																		const val = (e.currentTarget as HTMLInputElement).value;
+																		setPricingState((prev) => ({
+																			...prev,
+																			[modelId]: {
+																				input_price: val,
+																				output_price: prev[modelId]?.output_price ?? "",
+																			},
+																		}));
+																	}}
+																/>
+																<input
+																	type="number"
+																	class="w-20 rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-200"
+																	placeholder="输出"
+																	min="0"
+																	step="any"
+																	value={pricingState[modelId]?.output_price ?? ""}
+																	onInput={(e) => {
+																		const val = (e.currentTarget as HTMLInputElement).value;
+																		setPricingState((prev) => ({
+																			...prev,
+																			[modelId]: {
+																				input_price: prev[modelId]?.input_price ?? "",
+																				output_price: val,
+																			},
+																		}));
+																	}}
+																/>
+															</div>
 														</div>
 													)}
 												</div>
@@ -546,6 +650,26 @@ export const UserChannelsView = ({
 									</div>
 								</div>
 							)}
+							{/* Charge toggle */}
+							<div class="border-t border-stone-100 pt-3">
+								<label class="flex items-center gap-2 text-sm text-stone-700">
+									<input
+										type="checkbox"
+										class="h-4 w-4 rounded border-stone-300 text-amber-500 focus:ring-amber-400"
+										checked={form.charge_enabled}
+										onChange={(e) =>
+											setForm((prev) => ({
+												...prev,
+												charge_enabled: (e.currentTarget as HTMLInputElement).checked,
+											}))
+										}
+									/>
+									启用收费
+								</label>
+								<p class="mt-1 ml-6 text-xs text-stone-500">
+									开启后，其他用户调用此渠道的模型时产生的费用将计入你的余额（需管理员开启全局收费开关）
+								</p>
+							</div>
 							<div class="flex justify-end gap-3">
 								<button
 									type="button"

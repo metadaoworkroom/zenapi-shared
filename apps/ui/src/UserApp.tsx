@@ -24,6 +24,7 @@ type ChannelItem = {
 	models_json?: string;
 	api_format: string;
 	status: string;
+	charge_enabled?: number;
 	created_at: string;
 };
 

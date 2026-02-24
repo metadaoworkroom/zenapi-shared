@@ -294,3 +294,24 @@ export async function setLdcExchangeRate(
 	const value = Math.max(0.001, rate).toString();
 	await upsertSetting(db, LDC_EXCHANGE_RATE_KEY, value);
 }
+
+// Channel fee settings
+const CHANNEL_FEE_ENABLED_KEY = "channel_fee_enabled";
+
+/**
+ * Returns whether channel contributor fee collection is enabled.
+ */
+export async function getChannelFeeEnabled(db: D1Database): Promise<boolean> {
+	const value = await readSetting(db, CHANNEL_FEE_ENABLED_KEY);
+	return value === "true";
+}
+
+/**
+ * Updates the channel fee enabled setting.
+ */
+export async function setChannelFeeEnabled(
+	db: D1Database,
+	enabled: boolean,
+): Promise<void> {
+	await upsertSetting(db, CHANNEL_FEE_ENABLED_KEY, enabled ? "true" : "false");
+}

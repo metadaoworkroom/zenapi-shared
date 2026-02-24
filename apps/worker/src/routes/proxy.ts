@@ -18,7 +18,7 @@ import {
 } from "../services/format-converter";
 import { recordUsage } from "../services/usage";
 import { calculateCost, getModelPrice } from "../services/pricing";
-import { getSiteMode } from "../services/settings";
+import { getChannelFeeEnabled, getSiteMode } from "../services/settings";
 import { jsonError } from "../utils/http";
 import { safeJsonParse } from "../utils/json";
 import { extractReasoningEffort } from "../utils/reasoning";
@@ -579,6 +579,18 @@ proxy.all("/*", tokenAuth, async (c) => {
 				)
 					.bind(cost, now, tokenRecord.user_id)
 					.run();
+			}
+			// Credit contributor balance
+			if (cost > 0 && channelForUsage.contributed_by && channelForUsage.charge_enabled === 1) {
+				const feeEnabled = await getChannelFeeEnabled(c.env.DB);
+				if (feeEnabled) {
+					const now = new Date().toISOString();
+					await c.env.DB.prepare(
+						"UPDATE users SET balance = balance + ?, updated_at = ? WHERE id = ?",
+					)
+						.bind(cost, now, channelForUsage.contributed_by)
+						.run();
+				}
 			}
 		};
 		const logUsage = (

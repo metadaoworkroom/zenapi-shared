@@ -56,6 +56,7 @@ export const initialSettingsForm: SettingsForm = {
 	registration_mode: "open",
 	checkin_reward: "0.5",
 	require_invite_code: "false",
+	channel_fee_enabled: "false",
 	ldc_payment_enabled: "false",
 	ldc_epay_pid: "",
 	ldc_epay_key: "",
