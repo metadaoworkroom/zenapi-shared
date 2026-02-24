@@ -521,7 +521,7 @@ export const UserChannelsView = ({
 							{parsedModels.length > 0 && (
 								<div>
 									<label class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500">
-										模型别名配置
+										模型定价及别名配置
 									</label>
 									<div class="space-y-1">
 										{parsedModels.map((modelId) => {
