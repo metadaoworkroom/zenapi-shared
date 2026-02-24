@@ -267,6 +267,27 @@ export const SettingsView = ({
 				</p>
 			</div>
 			)}
+			{settingsForm.site_mode === "shared" && (
+			<div class="lg:col-span-2">
+				<label class="flex items-center gap-2 text-sm text-stone-700">
+					<input
+						type="checkbox"
+						class="h-4 w-4 rounded border-stone-300 text-amber-500 focus:ring-amber-400"
+						checked={settingsForm.user_channel_selection_enabled === "true"}
+						onChange={(event) => {
+							const target = event.currentTarget as HTMLInputElement | null;
+							onFormChange({
+								user_channel_selection_enabled: target?.checked ? "true" : "false",
+							});
+						}}
+					/>
+					允许用户选择渠道
+				</label>
+				<p class="mt-1 ml-6 text-xs text-stone-500">
+					开启后，用户创建令牌时可以选择限定使用哪些渠道
+				</p>
+			</div>
+			)}
 			{settingsForm.site_mode !== "personal" && (
 			<div class="lg:col-span-2 border-t border-stone-100 pt-4 mt-1">
 				<label class="flex items-center gap-2 text-sm text-stone-700">

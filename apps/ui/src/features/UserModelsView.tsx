@@ -1,9 +1,8 @@
 import { useMemo, useState } from "hono/jsx/dom";
-import type { PublicModelItem, SiteMode } from "../core/types";
+import type { PublicModelItem } from "../core/types";
 
 type UserModelsViewProps = {
 	models: PublicModelItem[];
-	siteMode: SiteMode;
 };
 
 function formatPrice(n: number | null): string {
@@ -11,7 +10,7 @@ function formatPrice(n: number | null): string {
 	return `$${n}`;
 }
 
-export const UserModelsView = ({ models, siteMode }: UserModelsViewProps) => {
+export const UserModelsView = ({ models }: UserModelsViewProps) => {
 	const [search, setSearch] = useState("");
 
 	const filtered = search
@@ -64,12 +63,6 @@ export const UserModelsView = ({ models, siteMode }: UserModelsViewProps) => {
 								</div>
 								{model.channels.length > 0 && (
 									<div class="rounded-lg bg-stone-50 p-2.5">
-										{siteMode === "shared" ? (
-											<p class="text-xs text-stone-500">
-												共 {model.channels.length} 个共享渠道可用
-											</p>
-										) : (
-											<>
 												<p class="mb-1.5 text-xs font-medium uppercase tracking-widest text-stone-400">
 													渠道价格
 												</p>
@@ -107,8 +100,6 @@ export const UserModelsView = ({ models, siteMode }: UserModelsViewProps) => {
 														</div>
 													))}
 												</div>
-											</>
-										)}
 									</div>
 								)}
 							</div>

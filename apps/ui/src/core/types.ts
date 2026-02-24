@@ -24,6 +24,7 @@ export type Token = {
 	user_id?: string | null;
 	user_name?: string | null;
 	user_email?: string | null;
+	allowed_channels?: string | null;
 	created_at?: string | null;
 	updated_at?: string | null;
 };
@@ -140,6 +141,7 @@ export type Settings = {
 	checkin_reward: number;
 	require_invite_code: boolean;
 	channel_fee_enabled: boolean;
+	user_channel_selection_enabled: boolean;
 	default_balance: number;
 	withdrawal_enabled: boolean;
 	withdrawal_fee_rate: number;
@@ -215,6 +217,7 @@ export type SettingsForm = {
 	checkin_reward: string;
 	require_invite_code: string;
 	channel_fee_enabled: string;
+	user_channel_selection_enabled: string;
 	default_balance: string;
 	withdrawal_enabled: string;
 	withdrawal_fee_rate: string;
@@ -272,6 +275,7 @@ export type UserDashboardData = {
 	ldc_exchange_rate: number;
 	withdrawal_enabled: boolean;
 	withdrawal_fee_rate: number;
+	user_channel_selection_enabled: boolean;
 };
 
 export type UserTabId =

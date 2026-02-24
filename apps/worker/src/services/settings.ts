@@ -385,6 +385,27 @@ export async function setDefaultBalance(
 	await upsertSetting(db, DEFAULT_BALANCE_KEY, value);
 }
 
+// User channel selection
+const USER_CHANNEL_SELECTION_ENABLED_KEY = "user_channel_selection_enabled";
+
+/**
+ * Returns whether user channel selection is enabled.
+ */
+export async function getUserChannelSelectionEnabled(db: D1Database): Promise<boolean> {
+	const value = await readSetting(db, USER_CHANNEL_SELECTION_ENABLED_KEY);
+	return value === "true";
+}
+
+/**
+ * Updates the user channel selection enabled setting.
+ */
+export async function setUserChannelSelectionEnabled(
+	db: D1Database,
+	enabled: boolean,
+): Promise<void> {
+	await upsertSetting(db, USER_CHANNEL_SELECTION_ENABLED_KEY, enabled ? "true" : "false");
+}
+
 // Withdrawal mode: "lenient" = consumption deducts welfare first; "strict" = consumption always reduces withdrawable
 const WITHDRAWAL_MODE_KEY = "withdrawal_mode";
 export type WithdrawalMode = "lenient" | "strict";

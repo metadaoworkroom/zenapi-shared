@@ -155,7 +155,7 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 			try {
 				if (tabId === "dashboard") await loadDashboard();
 				if (tabId === "models") await loadModels();
-				if (tabId === "tokens") await loadTokens();
+				if (tabId === "tokens") { await loadTokens(); await loadModels(); }
 				if (tabId === "usage") await loadUsage();
 				if (tabId === "channels") await loadChannels();
 				loadedTabs.current!.add(tabId);
@@ -209,11 +209,15 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 	}, [apiFetch, onUserRefresh]);
 
 	const handleTokenCreate = useCallback(
-		async (name: string) => {
+		async (name: string, allowedChannels?: string[]) => {
 			try {
+				const body: Record<string, unknown> = { name };
+				if (allowedChannels && allowedChannels.length > 0) {
+					body.allowed_channels = allowedChannels;
+				}
 				const result = await apiFetch<{ token: string }>("/api/u/tokens", {
 					method: "POST",
-					body: JSON.stringify({ name }),
+					body: JSON.stringify(body),
 				});
 				setNotice(`新令牌: ${result.token}`);
 				await loadTokens();
@@ -272,6 +276,18 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 		return userTabs;
 	}, [siteMode]);
 
+	const availableChannels = useMemo(() => {
+		const channelMap = new Map<string, string>();
+		for (const model of models) {
+			for (const ch of model.channels) {
+				if (!channelMap.has(ch.id)) {
+					channelMap.set(ch.id, ch.name);
+				}
+			}
+		}
+		return Array.from(channelMap.entries()).map(([id, name]) => ({ id, name }));
+	}, [models]);
+
 	const activeLabel = useMemo(
 		() => visibleTabs.find((tab) => tab.id === activeTab)?.label ?? "用户面板",
 		[activeTab, visibleTabs],
@@ -289,7 +305,7 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 			return <UserDashboard data={dashboardData} user={user} token={token} updateToken={updateToken} linuxdoEnabled={linuxdoEnabled} onUnbind={handleLinuxdoUnbind} onUserRefresh={onUserRefresh} />;
 		}
 		if (activeTab === "models") {
-			return <UserModelsView models={models} siteMode={siteMode} />;
+			return <UserModelsView models={models} />;
 		}
 		if (activeTab === "tokens") {
 			return (
@@ -298,6 +314,8 @@ export const UserApp = ({ token, user, updateToken, onNavigate, linuxdoEnabled, 
 					onCreate={handleTokenCreate}
 					onDelete={handleTokenDelete}
 					onReveal={handleTokenReveal}
+					availableChannels={availableChannels}
+					channelSelectionEnabled={dashboardData?.user_channel_selection_enabled}
 				/>
 			);
 		}

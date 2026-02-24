@@ -4,9 +4,11 @@ import { formatDateTime } from "../core/utils";
 
 type UserTokensViewProps = {
 	tokens: Token[];
-	onCreate: (name: string) => void;
+	onCreate: (name: string, allowedChannels?: string[]) => void;
 	onDelete: (id: string) => void;
 	onReveal: (id: string) => void;
+	availableChannels?: Array<{ id: string; name: string }>;
+	channelSelectionEnabled?: boolean;
 };
 
 export const UserTokensView = ({
@@ -14,16 +16,38 @@ export const UserTokensView = ({
 	onCreate,
 	onDelete,
 	onReveal,
+	availableChannels,
+	channelSelectionEnabled,
 }: UserTokensViewProps) => {
 	const [showModal, setShowModal] = useState(false);
 	const [tokenName, setTokenName] = useState("");
+	const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
 
 	const handleCreate = (e: Event) => {
 		e.preventDefault();
 		if (!tokenName.trim()) return;
-		onCreate(tokenName.trim());
+		onCreate(tokenName.trim(), selectedChannels.length > 0 ? selectedChannels : undefined);
 		setTokenName("");
+		setSelectedChannels([]);
 		setShowModal(false);
+	};
+
+	const toggleChannel = (id: string) => {
+		setSelectedChannels((prev) =>
+			prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+		);
+	};
+
+	const showChannelSelection = channelSelectionEnabled && availableChannels && availableChannels.length > 0;
+
+	const parseAllowedChannels = (val: string | null | undefined): string[] | null => {
+		if (!val) return null;
+		try {
+			const parsed = JSON.parse(val);
+			return Array.isArray(parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
 	};
 
 	return (
@@ -58,13 +82,16 @@ export const UserTokensView = ({
 								<th class="pb-2 pr-4 font-medium">名称</th>
 								<th class="pb-2 pr-4 font-medium">前缀</th>
 								<th class="pb-2 pr-4 font-medium">已用配额</th>
+								<th class="pb-2 pr-4 font-medium">渠道</th>
 								<th class="pb-2 pr-4 font-medium">状态</th>
 								<th class="pb-2 pr-4 font-medium">创建时间</th>
 								<th class="pb-2 font-medium">操作</th>
 							</tr>
 						</thead>
 						<tbody>
-							{tokens.map((token) => (
+							{tokens.map((token) => {
+								const channels = parseAllowedChannels(token.allowed_channels);
+								return (
 								<tr class="border-b border-stone-50">
 									<td class="py-2.5 pr-4 font-medium text-stone-700">
 										{token.name}
@@ -77,6 +104,15 @@ export const UserTokensView = ({
 										{token.quota_total != null
 											? ` / ${token.quota_total}`
 											: " / 无限"}
+									</td>
+									<td class="py-2.5 pr-4">
+										{channels ? (
+											<span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-600">
+												{channels.length} 个渠道
+											</span>
+										) : (
+											<span class="text-xs text-stone-400">全部</span>
+										)}
 									</td>
 									<td class="py-2.5 pr-4">
 										<span
@@ -113,7 +149,8 @@ export const UserTokensView = ({
 										</div>
 									</td>
 								</tr>
-							))}
+								);
+							})}
 						</tbody>
 					</table>
 				</div>
@@ -153,6 +190,34 @@ export const UserTokensView = ({
 									}
 								/>
 							</div>
+							{showChannelSelection && (
+							<div class="mb-4">
+								<label class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500">
+									限定渠道（可选）
+								</label>
+								<p class="mb-2 text-xs text-stone-400">
+									不选择则使用全部可用渠道
+								</p>
+								<div class="max-h-48 overflow-y-auto rounded-lg border border-stone-200 p-2 space-y-1">
+									{availableChannels!.map((ch) => (
+										<label key={ch.id} class="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-50 cursor-pointer">
+											<input
+												type="checkbox"
+												class="h-4 w-4 rounded border-stone-300 text-amber-500 focus:ring-amber-400"
+												checked={selectedChannels.includes(ch.id)}
+												onChange={() => toggleChannel(ch.id)}
+											/>
+											{ch.name}
+										</label>
+									))}
+								</div>
+								{selectedChannels.length > 0 && (
+									<p class="mt-1 text-xs text-amber-600">
+										已选择 {selectedChannels.length} 个渠道
+									</p>
+								)}
+							</div>
+							)}
 							<div class="flex justify-end gap-3">
 								<button
 									type="button"

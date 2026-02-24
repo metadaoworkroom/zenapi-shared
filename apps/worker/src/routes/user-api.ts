@@ -5,7 +5,7 @@ import { userAuth } from "../middleware/userAuth";
 import { extractModelPricings, extractModelIds, extractSharedModelPricings } from "../services/channel-models";
 import { listActiveChannels } from "../services/channel-repo";
 import { loadAllChannelAliasesGrouped } from "../services/model-aliases";
-import { getCheckinReward, getLdcExchangeRate, getLdcPaymentEnabled, getSiteMode, getWithdrawalEnabled, getWithdrawalFeeRate } from "../services/settings";
+import { getCheckinReward, getLdcExchangeRate, getLdcPaymentEnabled, getSiteMode, getUserChannelSelectionEnabled, getWithdrawalEnabled, getWithdrawalFeeRate } from "../services/settings";
 import { generateToken, sha256Hex } from "../utils/crypto";
 import { jsonError } from "../utils/http";
 import { nowIso } from "../utils/time";
@@ -61,9 +61,7 @@ userApi.get("/models", async (c) => {
 		for (const p of pricings) {
 			const aliasInfo = chAliases?.get(p.id);
 			const isAliasOnly = aliasInfo?.alias_only ?? false;
-			const chInfo: ChannelEntry = siteMode === "shared"
-				? { id: channel.id, name: "共享渠道", input_price: null, output_price: null }
-				: { id: channel.id, name: channel.name, input_price: p.input_price ?? null, output_price: p.output_price ?? null };
+			const chInfo: ChannelEntry = { id: channel.id, name: channel.name, input_price: p.input_price ?? null, output_price: p.output_price ?? null };
 
 			// Original name (unless alias_only)
 			if (!isAliasOnly) {
@@ -103,7 +101,7 @@ userApi.get("/models", async (c) => {
 userApi.get("/tokens", async (c) => {
 	const userId = c.get("userId") as string;
 	const result = await c.env.DB.prepare(
-		"SELECT id, name, key_prefix, quota_total, quota_used, status, created_at, updated_at FROM tokens WHERE user_id = ? ORDER BY created_at DESC",
+		"SELECT id, name, key_prefix, quota_total, quota_used, status, allowed_channels, created_at, updated_at FROM tokens WHERE user_id = ? ORDER BY created_at DESC",
 	)
 		.bind(userId)
 		.all();
@@ -120,6 +118,15 @@ userApi.post("/tokens", async (c) => {
 		return jsonError(c, 400, "name_required", "name_required");
 	}
 
+	let allowedChannels: string | null = null;
+	if (body.allowed_channels && Array.isArray(body.allowed_channels) && body.allowed_channels.length > 0) {
+		const channelSelectionEnabled = await getUserChannelSelectionEnabled(c.env.DB);
+		if (!channelSelectionEnabled) {
+			return jsonError(c, 403, "channel_selection_disabled", "channel_selection_disabled");
+		}
+		allowedChannels = JSON.stringify(body.allowed_channels);
+	}
+
 	const rawToken = generateToken("sk-");
 	const tokenHash = await sha256Hex(rawToken);
 	const id = crypto.randomUUID();
@@ -129,7 +136,7 @@ userApi.post("/tokens", async (c) => {
 	await c.env.DB.prepare(
 		"INSERT INTO tokens (id, name, key_hash, key_prefix, token_plain, quota_total, quota_used, status, allowed_channels, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 	)
-		.bind(id, body.name, tokenHash, keyPrefix, rawToken, null, 0, "active", null, userId, now, now)
+		.bind(id, body.name, tokenHash, keyPrefix, rawToken, null, 0, "active", allowedChannels, userId, now, now)
 		.run();
 
 	return c.json({ id, token: rawToken });
@@ -283,6 +290,7 @@ userApi.get("/dashboard", async (c) => {
 	const ldcExchangeRate = await getLdcExchangeRate(c.env.DB);
 	const withdrawalEnabled = await getWithdrawalEnabled(c.env.DB);
 	const withdrawalFeeRate = await getWithdrawalFeeRate(c.env.DB);
+	const userChannelSelectionEnabled = await getUserChannelSelectionEnabled(c.env.DB);
 	const todayStr = new Date().toISOString().slice(0, 10);
 	const checkinRow = await c.env.DB.prepare(
 		"SELECT id FROM user_checkins WHERE user_id = ? AND checkin_date = ?",
@@ -376,6 +384,7 @@ userApi.get("/dashboard", async (c) => {
 		ldc_exchange_rate: ldcExchangeRate,
 		withdrawal_enabled: withdrawalEnabled,
 		withdrawal_fee_rate: withdrawalFeeRate,
+		user_channel_selection_enabled: userChannelSelectionEnabled,
 	});
 });
 
