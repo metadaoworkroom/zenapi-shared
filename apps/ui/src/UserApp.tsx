@@ -28,7 +28,7 @@ type ChannelItem = {
 };
 
 export type ModelAliasConfig = {
-	aliases: Array<{ alias: string; is_primary: boolean }>;
+	aliases: string[];
 	alias_only: boolean;
 };
 

@@ -7,8 +7,6 @@ import {
 	extractModels,
 } from "../services/channels";
 import {
-	collectUniqueModelIds,
-	collectUniqueSharedModelIds,
 	extractModelIds,
 	extractSharedModelPricings,
 	extractSharedModels,
@@ -27,7 +25,7 @@ import { extractReasoningEffort } from "../utils/reasoning";
 import { parseApiKeys, shuffleArray } from "../utils/keys";
 import { isRetryableStatus, sleep } from "../utils/retry";
 import { resolveChannelRoute } from "../services/channel-route";
-import { resolveModelNames, loadAliasMap, loadAliasOnlySet, loadAllChannelAliasMap, loadChannelAliasesByAlias, loadChannelAliasOnlyMap } from "../services/model-aliases";
+import { loadChannelAliasesByAlias, loadChannelAliasOnlyMap, loadAllChannelAliasesGrouped } from "../services/model-aliases";
 import { cfSafeUrl, normalizeBaseUrl } from "../utils/url";
 import {
 	type NormalizedUsage,
@@ -65,47 +63,6 @@ export function channelSupportsSharedModel(
 		return models.length > 0;
 	}
 	return models.some((entry) => entry.id === model);
-}
-
-/**
- * Returns true if the channel supports ANY of the given model names.
- */
-export function channelSupportsAnyModel(
-	channel: ChannelRecord,
-	names: string[],
-): boolean {
-	const models = extractModels(channel);
-	return names.some((name) => models.some((entry) => entry.id === name));
-}
-
-/**
- * Returns true if the channel supports ANY of the given model names (shared only).
- */
-export function channelSupportsAnySharedModel(
-	channel: ChannelRecord,
-	names: string[],
-): boolean {
-	const models = extractSharedModels(
-		channel as unknown as { id: string; name: string; models_json: string },
-	);
-	return names.some((name) => models.some((entry) => entry.id === name));
-}
-
-/**
- * Finds which model name from the resolved set the channel actually supports.
- * Returns the first match, or the first name as fallback.
- */
-export function findChannelModelName(
-	channel: ChannelRecord,
-	names: string[],
-): string {
-	const models = extractModels(channel);
-	for (const name of names) {
-		if (models.some((entry) => entry.id === name)) {
-			return name;
-		}
-	}
-	return names[0];
 }
 
 export function filterAllowedChannels(
@@ -235,7 +192,7 @@ export async function convertResponse(
 
 /**
  * OpenAI-compatible /models endpoint.
- * Returns all unique models from active channels.
+ * Returns all callable model names using the effective mapping algorithm.
  */
 proxy.get("/models", tokenAuth, async (c) => {
 	const tokenRecord = c.get("tokenRecord") as TokenRecord;
@@ -249,73 +206,47 @@ proxy.get("/models", tokenAuth, async (c) => {
 
 	const siteMode = await getSiteMode(c.env.DB);
 	const useSharedFilter = siteMode === "shared" && !!tokenRecord.user_id;
-	const modelIds = useSharedFilter
-		? collectUniqueSharedModelIds(allowed)
-		: collectUniqueModelIds(allowed);
 
-	// Build model→channel mapping for per-channel alias_only check
-	const modelToChannelIds = new Map<string, string[]>();
+	// Build per-channel model ID sets
+	const channelModelIds = new Map<string, string[]>();
 	for (const ch of allowed) {
 		const chModelIds = useSharedFilter
 			? extractSharedModelPricings(ch).filter((m) => m.enabled !== false).map((m) => m.id)
 			: extractModelIds(ch);
-		for (const mid of chModelIds) {
-			const arr = modelToChannelIds.get(mid) ?? [];
-			arr.push(ch.id);
-			modelToChannelIds.set(mid, arr);
-		}
+		channelModelIds.set(ch.id, chModelIds);
 	}
 
+	// Load alias data
+	const aliasGroups = await loadAllChannelAliasesGrouped(c.env.DB);
+
+	// Compute effective mapping
 	const now = Math.floor(Date.now() / 1000);
 	const modelData: Array<{ id: string; object: string; created: number; owned_by: string }> = [];
+	const seen = new Set<string>();
 
-	// Load alias-only sets (global + per-channel)
-	const aliasOnlySet = await loadAliasOnlySet(c.env.DB);
-	const channelAliasOnlyMap = await loadChannelAliasOnlyMap(c.env.DB);
+	for (const ch of allowed) {
+		const modelIds = channelModelIds.get(ch.id) ?? [];
+		const chAliases = aliasGroups.get(ch.id);
 
-	for (const id of modelIds) {
-		// Global alias-only → always hide
-		if (aliasOnlySet.has(id)) continue;
+		for (const modelId of modelIds) {
+			const aliasInfo = chAliases?.get(modelId);
+			const isAliasOnly = aliasInfo?.alias_only ?? false;
 
-		// Per-channel alias-only → hide if ALL providing channels have alias_only
-		const providers = modelToChannelIds.get(id) ?? [];
-		if (providers.length > 0) {
-			const allAliasOnly = providers.every((chId) => {
-				const aoModels = channelAliasOnlyMap.get(chId);
-				return aoModels?.has(id) ?? false;
-			});
-			if (allAliasOnly) continue;
-		}
+			// Original name (unless alias_only)
+			if (!isAliasOnly && !seen.has(modelId)) {
+				seen.add(modelId);
+				modelData.push({ id: modelId, object: "model", created: now, owned_by: "system" });
+			}
 
-		modelData.push({ id, object: "model", created: now, owned_by: "system" });
-	}
-
-	// Add aliases that point to models in the list
-	const modelIdSet = new Set(modelIds);
-	const aliasMap = await loadAliasMap(c.env.DB);
-	for (const [alias, targetModelId] of aliasMap) {
-		if (modelIdSet.has(targetModelId) && !modelIdSet.has(alias)) {
-			modelData.push({
-				id: alias,
-				object: "model",
-				created: now,
-				owned_by: "system",
-			});
-		}
-	}
-
-	// Add per-channel aliases that point to models in the list
-	const channelAliasMap = await loadAllChannelAliasMap(c.env.DB);
-	const listedIds = new Set(modelData.map((m) => m.id));
-	for (const [alias, targetModelId] of channelAliasMap) {
-		if (modelIdSet.has(targetModelId) && !listedIds.has(alias)) {
-			modelData.push({
-				id: alias,
-				object: "model",
-				created: now,
-				owned_by: "system",
-			});
-			listedIds.add(alias);
+			// Alias names
+			if (aliasInfo) {
+				for (const alias of aliasInfo.aliases) {
+					if (!seen.has(alias)) {
+						seen.add(alias);
+						modelData.push({ id: alias, object: "model", created: now, owned_by: "system" });
+					}
+				}
+			}
 		}
 	}
 
@@ -341,23 +272,12 @@ proxy.all("/*", tokenAuth, async (c) => {
 			: null;
 	const isStream = parsedBody?.stream === true;
 
-	// Resolve model aliases — returns all model IDs this name can route to
-	const resolvedNames = model ? await resolveModelNames(c.env.DB, model) : [];
-
 	// Resolve per-channel aliases for this model name
 	const channelAliasHits = model ? await loadChannelAliasesByAlias(c.env.DB, model) : [];
 	const channelAliasHitMap = new Map(channelAliasHits.map((h) => [h.channel_id, h]));
 
-	// Block requests using the original name of alias-only models
-	// resolvedNames[0] === model (always), resolvedNames[1] === target model_id (if alias found)
-	// If no alias was resolved (length === 1), check if this model_id is alias-only
-	// But don't block if per-channel alias hits exist for this name
-	if (model && resolvedNames.length === 1 && channelAliasHits.length === 0) {
-		const aliasOnlySet = await loadAliasOnlySet(c.env.DB);
-		if (aliasOnlySet.has(model)) {
-			return jsonError(c, 404, "model_not_found", `The model '${model}' does not exist or is not available.`);
-		}
-	}
+	// Load per-channel alias-only map
+	const perChannelAliasOnlyMap = await loadChannelAliasOnlyMap(c.env.DB);
 
 	const reasoningEffort = extractReasoningEffort(parsedBody);
 	let mutatedStreamOptions = false;
@@ -416,23 +336,17 @@ proxy.all("/*", tokenAuth, async (c) => {
 		candidates = [targetChannel];
 	} else {
 		const allowedChannels = filterAllowedChannels(activeChannels, tokenRecord);
-		// Load per-channel alias-only map for filtering (always needed, not just when alias hits exist)
-		const perChannelAliasOnlyMap = await loadChannelAliasOnlyMap(c.env.DB);
-		if (resolvedNames.length > 0) {
+		if (model) {
 			const supportsFn = useSharedFilter
-				? channelSupportsAnySharedModel
-				: channelSupportsAnyModel;
+				? channelSupportsSharedModel
+				: channelSupportsModel;
 			candidates = allowedChannels.filter((channel) => {
-				// Channel matched via per-channel alias
+				// Channel matched via per-channel alias → include
 				if (channelAliasHitMap.has(channel.id)) return true;
-				// Channel matched via global alias — but exclude if per-channel alias_only
-				if (supportsFn(channel, resolvedNames)) {
+				// Channel natively supports this model → include UNLESS alias_only
+				if (supportsFn(channel, model)) {
 					const aliasOnlyModels = perChannelAliasOnlyMap.get(channel.id);
-					if (aliasOnlyModels) {
-						// If ALL resolved names are alias-only on this channel, exclude
-						return !resolvedNames.every((n) => aliasOnlyModels.has(n));
-					}
-					return true;
+					return !(aliasOnlyModels?.has(model));
 				}
 				return false;
 			});
@@ -506,12 +420,6 @@ proxy.all("/*", tokenAuth, async (c) => {
 					channelModelName = aliasHit.model_id;
 					channelParsedBody = { ...parsedBody, model: channelModelName };
 					channelRequestText = JSON.stringify(channelParsedBody);
-				} else if (resolvedNames.length > 1) {
-					channelModelName = findChannelModelName(channel, resolvedNames);
-					if (channelModelName !== model) {
-						channelParsedBody = { ...parsedBody, model: channelModelName };
-						channelRequestText = JSON.stringify(channelParsedBody);
-					}
 				}
 			}
 

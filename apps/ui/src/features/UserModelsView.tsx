@@ -11,54 +11,15 @@ function formatPrice(n: number | null): string {
 	return `$${n}`;
 }
 
-/** Merge models that share the same display_name into single virtual cards. */
-function mergeByDisplayName(models: PublicModelItem[]): PublicModelItem[] {
-	const groups = new Map<string, PublicModelItem[]>();
-	for (const m of models) {
-		const key = m.display_name;
-		const arr = groups.get(key) ?? [];
-		arr.push(m);
-		groups.set(key, arr);
-	}
-	const merged: PublicModelItem[] = [];
-	for (const [displayName, group] of groups) {
-		if (group.length === 1) {
-			merged.push(group[0]);
-			continue;
-		}
-		const seenChannels = new Set<string>();
-		const channels: PublicModelItem["channels"] = [];
-		for (const m of group) {
-			for (const ch of m.channels) {
-				if (!seenChannels.has(ch.id)) {
-					seenChannels.add(ch.id);
-					channels.push(ch);
-				}
-			}
-		}
-		merged.push({ id: displayName, display_name: displayName, channels });
-	}
-	return merged;
-}
-
 export const UserModelsView = ({ models, siteMode }: UserModelsViewProps) => {
 	const [search, setSearch] = useState("");
-	const [primaryMode, setPrimaryMode] = useState(false);
-
-	const displayModels = useMemo(
-		() => (primaryMode ? mergeByDisplayName(models) : models),
-		[models, primaryMode],
-	);
 
 	const filtered = search
-		? displayModels.filter((m) => {
+		? models.filter((m) => {
 				const lower = search.toLowerCase();
-				return (
-					m.id.toLowerCase().includes(lower) ||
-					m.display_name.toLowerCase().includes(lower)
-				);
+				return m.id.toLowerCase().includes(lower);
 			})
-		: displayModels;
+		: models;
 
 	return (
 		<div class="rounded-2xl border border-stone-200 bg-white p-5 shadow-lg">
@@ -68,19 +29,8 @@ export const UserModelsView = ({ models, siteMode }: UserModelsViewProps) => {
 						模型广场
 					</h3>
 					<span class="rounded-full bg-stone-100 px-2.5 py-1 text-xs text-stone-500">
-						{filtered.length} / {displayModels.length} 个模型
+						{filtered.length} / {models.length} 个模型
 					</span>
-					<button
-						type="button"
-						class={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-							primaryMode
-								? "border-amber-400 bg-amber-50 text-amber-700"
-								: "border-stone-200 bg-white text-stone-500 hover:border-stone-300"
-						}`}
-						onClick={() => setPrimaryMode((v) => !v)}
-					>
-						{primaryMode ? "主名模式" : "普通模式"}
-					</button>
 				</div>
 				<input
 					class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:w-64"
@@ -100,20 +50,13 @@ export const UserModelsView = ({ models, siteMode }: UserModelsViewProps) => {
 			) : (
 				<div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
 					{filtered.map((model) => {
-						const showSubtitle =
-							!primaryMode && model.display_name !== model.id;
 						return (
 							<div class="rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
 								<div class="mb-2 flex items-start justify-between gap-2">
 									<div class="min-w-0 flex-1">
 										<h4 class="break-all font-['Space_Grotesk'] text-sm font-semibold tracking-tight text-stone-900">
-											{model.display_name}
+											{model.id}
 										</h4>
-										{showSubtitle && (
-											<p class="mt-0.5 break-all text-xs text-stone-400">
-												{model.id}
-											</p>
-										)}
 									</div>
 									<span class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">
 										{model.channels.length} 渠道

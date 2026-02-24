@@ -146,18 +146,9 @@ export type ModelChannel = {
 	avg_latency_ms: number | null;
 };
 
-export type ModelAlias = { alias: string; is_primary: boolean };
-
-export type ModelAliasGroup = {
-	aliases: ModelAlias[];
-	alias_only: boolean;
-};
-
 export type ModelItem = {
 	id: string;
-	display_name: string;
-	aliases: ModelAlias[];
-	alias_only: boolean;
+	real_model_id: string | null;
 	channels: ModelChannel[];
 	total_requests: number;
 	total_tokens: number;
@@ -263,7 +254,6 @@ export type UserTabItem = {
 
 export type PublicModelItem = {
 	id: string;
-	display_name: string;
 	channels: Array<{
 		id: string;
 		name: string;

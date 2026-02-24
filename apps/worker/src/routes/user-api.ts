@@ -2,9 +2,9 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import type { UserRecord } from "../middleware/userAuth";
 import { userAuth } from "../middleware/userAuth";
-import { extractModelPricings, extractSharedModelPricings } from "../services/channel-models";
+import { extractModelPricings, extractModelIds, extractSharedModelPricings } from "../services/channel-models";
 import { listActiveChannels } from "../services/channel-repo";
-import { loadPrimaryNameMap, loadAliasOnlySet, loadAliasMap, loadAllChannelAliasMap, loadChannelAliasOnlyMap, loadChannelPrimaryNameMap } from "../services/model-aliases";
+import { loadAllChannelAliasesGrouped } from "../services/model-aliases";
 import { getSiteMode } from "../services/settings";
 import { generateToken, sha256Hex } from "../utils/crypto";
 import { jsonError } from "../utils/http";
@@ -38,109 +38,60 @@ userApi.patch("/profile", async (c) => {
 });
 
 /**
- * Returns models visible to users (with pricing info for service mode).
+ * Returns models visible to users using the effective mapping algorithm.
  */
 userApi.get("/models", async (c) => {
 	const siteMode = await getSiteMode(c.env.DB);
 	const channels = await listActiveChannels(c.env.DB);
 
-	const modelMap = new Map<
-		string,
-		Array<{
-			id: string;
-			name: string;
-			input_price: number | null;
-			output_price: number | null;
-		}>
-	>();
+	// Load alias data
+	const aliasGroups = await loadAllChannelAliasesGrouped(c.env.DB);
 
-	// Build model→channels map with per-channel info for alias_only checking
-	const modelChannelIds = new Map<string, string[]>();
+	// Compute effective mapping
+	type ChannelEntry = { id: string; name: string; input_price: number | null; output_price: number | null };
+	const effectiveMap = new Map<string, { channels: Map<string, ChannelEntry> }>();
 
 	for (const channel of channels) {
 		const pricings = siteMode === "shared"
 			? extractSharedModelPricings(channel)
 			: extractModelPricings(channel);
+		const modelIds = pricings.map((p) => p.id);
+		const chAliases = aliasGroups.get(channel.id);
+
 		for (const p of pricings) {
-			const existing = modelMap.get(p.id) ?? [];
-			if (siteMode === "shared") {
-				existing.push({
-					id: channel.id,
-					name: "共享渠道",
-					input_price: null,
-					output_price: null,
-				});
-			} else {
-				existing.push({
-					id: channel.id,
-					name: channel.name,
-					input_price: p.input_price ?? null,
-					output_price: p.output_price ?? null,
-				});
+			const aliasInfo = chAliases?.get(p.id);
+			const isAliasOnly = aliasInfo?.alias_only ?? false;
+			const chInfo: ChannelEntry = siteMode === "shared"
+				? { id: channel.id, name: "共享渠道", input_price: null, output_price: null }
+				: { id: channel.id, name: channel.name, input_price: p.input_price ?? null, output_price: p.output_price ?? null };
+
+			// Original name (unless alias_only)
+			if (!isAliasOnly) {
+				let entry = effectiveMap.get(p.id);
+				if (!entry) {
+					entry = { channels: new Map() };
+					effectiveMap.set(p.id, entry);
+				}
+				entry.channels.set(channel.id, chInfo);
 			}
-			modelMap.set(p.id, existing);
 
-			// Track which channels provide each model (for alias_only check)
-			const chIds = modelChannelIds.get(p.id) ?? [];
-			chIds.push(channel.id);
-			modelChannelIds.set(p.id, chIds);
+			// Alias names
+			if (aliasInfo) {
+				for (const alias of aliasInfo.aliases) {
+					let entry = effectiveMap.get(alias);
+					if (!entry) {
+						entry = { channels: new Map() };
+						effectiveMap.set(alias, entry);
+					}
+					entry.channels.set(channel.id, chInfo);
+				}
+			}
 		}
 	}
 
-	// Load alias data from both global and per-channel tables
-	const primaryNames = await loadPrimaryNameMap(c.env.DB);
-	const channelPrimaryNames = await loadChannelPrimaryNameMap(c.env.DB);
-	const globalAliasOnlySet = await loadAliasOnlySet(c.env.DB);
-	const channelAliasOnlyMap = await loadChannelAliasOnlyMap(c.env.DB);
-	const globalAliasMap = await loadAliasMap(c.env.DB);
-	const channelAliasMap = await loadAllChannelAliasMap(c.env.DB);
-
-	const modelIdSet = new Set(modelMap.keys());
-	const models: Array<{ id: string; display_name: string; channels: typeof modelMap extends Map<string, infer V> ? V : never }> = [];
-
-	// Add original model entries, hiding alias-only models
-	for (const [id, chs] of modelMap) {
-		// Global alias-only → always hide
-		if (globalAliasOnlySet.has(id)) continue;
-
-		// Per-channel alias-only → hide if ALL providing channels have alias_only
-		const providers = modelChannelIds.get(id) ?? [];
-		if (providers.length > 0) {
-			const allAliasOnly = providers.every((chId) => {
-				const aoModels = channelAliasOnlyMap.get(chId);
-				return aoModels?.has(id) ?? false;
-			});
-			if (allAliasOnly) continue;
-		}
-
-		// display_name: global primary > per-channel primary > model_id
-		const displayName = primaryNames.get(id) ?? channelPrimaryNames.get(id) ?? id;
-		models.push({ id, display_name: displayName, channels: chs });
-	}
-
-	// Add global alias entries (aliases that point to models in the list)
-	const listedIds = new Set(models.map((m) => m.id));
-	for (const [alias, targetModelId] of globalAliasMap) {
-		if (modelIdSet.has(targetModelId) && !listedIds.has(alias)) {
-			models.push({
-				id: alias,
-				display_name: alias,
-				channels: modelMap.get(targetModelId) ?? [],
-			});
-			listedIds.add(alias);
-		}
-	}
-
-	// Add per-channel alias entries
-	for (const [alias, targetModelId] of channelAliasMap) {
-		if (modelIdSet.has(targetModelId) && !listedIds.has(alias)) {
-			models.push({
-				id: alias,
-				display_name: alias,
-				channels: modelMap.get(targetModelId) ?? [],
-			});
-			listedIds.add(alias);
-		}
+	const models: Array<{ id: string; channels: ChannelEntry[] }> = [];
+	for (const [callableName, entry] of effectiveMap) {
+		models.push({ id: callableName, channels: Array.from(entry.channels.values()) });
 	}
 
 	return c.json({ models, site_mode: siteMode });

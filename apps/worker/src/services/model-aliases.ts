@@ -13,7 +13,6 @@ type AliasRow = {
 
 export type AliasInput = {
 	alias: string;
-	is_primary: boolean;
 };
 
 /**
@@ -148,7 +147,7 @@ export async function saveAliasesForModel(
 				crypto.randomUUID(),
 				modelId,
 				a.alias,
-				a.is_primary ? 1 : 0,
+				0,
 				aliasOnly ? 1 : 0,
 				now,
 				now,
@@ -201,7 +200,7 @@ export async function saveChannelAliases(
 				channelId,
 				modelId,
 				a.alias,
-				a.is_primary ? 1 : 0,
+				0,
 				aliasOnly ? 1 : 0,
 				now,
 				now,
@@ -231,21 +230,20 @@ export async function loadChannelAliasesByAlias(
 }
 
 /**
- * Returns a map of alias → model_id across all channels.
- * Used by the /v1/models endpoint to list per-channel aliases.
+ * Returns a map of alias → Array<{channel_id, model_id}> across all channels.
+ * Preserves channel info so model list endpoints can map aliases to their actual channels.
  */
 export async function loadAllChannelAliasMap(
 	db: D1Database,
-): Promise<Map<string, string>> {
+): Promise<Map<string, Array<{ channel_id: string; model_id: string }>>> {
 	const result = await db
-		.prepare("SELECT alias, model_id FROM channel_model_aliases")
-		.all<{ alias: string; model_id: string }>();
-	const map = new Map<string, string>();
+		.prepare("SELECT alias, model_id, channel_id FROM channel_model_aliases")
+		.all<{ alias: string; model_id: string; channel_id: string }>();
+	const map = new Map<string, Array<{ channel_id: string; model_id: string }>>();
 	for (const row of result.results ?? []) {
-		// First one wins (multiple channels may alias the same name)
-		if (!map.has(row.alias)) {
-			map.set(row.alias, row.model_id);
-		}
+		const existing = map.get(row.alias) ?? [];
+		existing.push({ channel_id: row.channel_id, model_id: row.model_id });
+		map.set(row.alias, existing);
 	}
 	return map;
 }
@@ -287,4 +285,79 @@ export async function loadChannelAliasOnlyMap(
 		map.set(row.channel_id, existing);
 	}
 	return map;
+}
+
+/**
+ * Returns all per-channel aliases grouped by channelId → modelId → { aliases, alias_only }.
+ * Single query, used by model list endpoints for the effective mapping computation.
+ */
+export async function loadAllChannelAliasesGrouped(
+	db: D1Database,
+): Promise<Map<string, Map<string, { aliases: string[]; alias_only: boolean }>>> {
+	const result = await db
+		.prepare("SELECT channel_id, model_id, alias, alias_only FROM channel_model_aliases")
+		.all<{ channel_id: string; model_id: string; alias: string; alias_only: number }>();
+	const map = new Map<string, Map<string, { aliases: string[]; alias_only: boolean }>>();
+	for (const row of result.results ?? []) {
+		let channelMap = map.get(row.channel_id);
+		if (!channelMap) {
+			channelMap = new Map();
+			map.set(row.channel_id, channelMap);
+		}
+		let entry = channelMap.get(row.model_id);
+		if (!entry) {
+			entry = { aliases: [], alias_only: false };
+			channelMap.set(row.model_id, entry);
+		}
+		entry.aliases.push(row.alias);
+		if (row.alias_only === 1) {
+			entry.alias_only = true;
+		}
+	}
+	return map;
+}
+
+/**
+ * Batch saves aliases for a model across all channels that have it in their models_json.
+ * Used by the Models View batch editor.
+ */
+export async function batchSaveAliasesForModel(
+	db: D1Database,
+	modelId: string,
+	aliases: string[],
+	aliasOnly: boolean,
+	channelIds: string[],
+): Promise<void> {
+	const now = nowIso();
+	const stmts: ReturnType<typeof db.prepare>[] = [];
+
+	for (const channelId of channelIds) {
+		stmts.push(
+			db
+				.prepare("DELETE FROM channel_model_aliases WHERE channel_id = ? AND model_id = ?")
+				.bind(channelId, modelId),
+		);
+		for (const alias of aliases) {
+			stmts.push(
+				db
+					.prepare(
+						"INSERT INTO channel_model_aliases (id, channel_id, model_id, alias, is_primary, alias_only, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+					)
+					.bind(
+						crypto.randomUUID(),
+						channelId,
+						modelId,
+						alias,
+						0,
+						aliasOnly ? 1 : 0,
+						now,
+						now,
+					),
+			);
+		}
+	}
+
+	if (stmts.length > 0) {
+		await db.batch(stmts);
+	}
 }

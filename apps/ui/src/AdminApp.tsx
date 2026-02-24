@@ -336,7 +336,7 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 		for (const mid of modelIds) {
 			if (perChannelMap[mid]) {
 				initial[mid] = {
-					aliases: perChannelMap[mid].aliases.map((a) => ({ ...a })),
+					aliases: [...perChannelMap[mid].aliases],
 					alias_only: perChannelMap[mid].alias_only,
 				};
 			}
@@ -393,7 +393,7 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 					});
 				// Build model_aliases payload from alias state
 				const modelIds = modelsArray.map((m) => m.id);
-				const aliasPayload: Record<string, { aliases: Array<{ alias: string; is_primary: boolean }>; alias_only: boolean }> = {};
+				const aliasPayload: Record<string, { aliases: string[]; alias_only: boolean }> = {};
 				for (const mid of modelIds) {
 					if (channelAliasState[mid]) {
 						aliasPayload[mid] = channelAliasState[mid];
@@ -616,7 +616,7 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 	const handleAliasSave = useCallback(
 		async (
 			modelId: string,
-			aliases: Array<{ alias: string; is_primary: boolean }>,
+			aliases: string[],
 			aliasOnly?: boolean,
 		) => {
 			try {

@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
+import { extractModelIds } from "../services/channel-models";
+import { listActiveChannels } from "../services/channel-repo";
 import {
-	type AliasInput,
-	deleteAliasesForModel,
-	listAllAliases,
-	saveAliasesForModel,
+	batchSaveAliasesForModel,
+	loadAllChannelAliasesGrouped,
 } from "../services/model-aliases";
 import { jsonError } from "../utils/http";
 
@@ -12,23 +12,33 @@ const modelAliasRoutes = new Hono<AppEnv>();
 
 /**
  * List all aliases grouped by model_id.
+ * Queries channel_model_aliases and returns a union across channels.
  */
 modelAliasRoutes.get("/", async (c) => {
-	const aliasMap = await listAllAliases(c.env.DB);
-	const result: Record<string, { aliases: Array<{ alias: string; is_primary: boolean }>; alias_only: boolean }> =
-		{};
-	for (const [modelId, aliases] of aliasMap) {
-		const aliasOnly = aliases.length > 0 && aliases[0].alias_only;
-		result[modelId] = {
-			aliases: aliases.map((a) => ({ alias: a.alias, is_primary: a.is_primary })),
-			alias_only: aliasOnly,
-		};
+	const aliasGroups = await loadAllChannelAliasesGrouped(c.env.DB);
+	// Merge across all channels: for each model_id, collect unique aliases and alias_only
+	const merged: Record<string, { aliases: string[]; alias_only: boolean }> = {};
+	for (const [, channelMap] of aliasGroups) {
+		for (const [modelId, info] of channelMap) {
+			if (!merged[modelId]) {
+				merged[modelId] = { aliases: [], alias_only: false };
+			}
+			for (const alias of info.aliases) {
+				if (!merged[modelId].aliases.includes(alias)) {
+					merged[modelId].aliases.push(alias);
+				}
+			}
+			if (info.alias_only) {
+				merged[modelId].alias_only = true;
+			}
+		}
 	}
-	return c.json({ aliases: result });
+	return c.json({ aliases: merged });
 });
 
 /**
- * Save aliases for a specific model (replace all).
+ * Save aliases for a specific model across all active channels that have it.
+ * Body: { aliases: string[], alias_only: boolean }
  */
 modelAliasRoutes.put("/:modelId", async (c) => {
 	const modelId = c.req.param("modelId");
@@ -37,36 +47,33 @@ modelAliasRoutes.put("/:modelId", async (c) => {
 		return jsonError(c, 400, "invalid_body", "body must contain aliases array");
 	}
 
-	const aliases: AliasInput[] = [];
-	let hasPrimary = false;
+	const aliases: string[] = [];
 	for (const item of body.aliases) {
-		if (!item.alias || typeof item.alias !== "string") {
+		if (typeof item !== "string" || !item.trim()) {
 			return jsonError(
 				c,
 				400,
 				"invalid_alias",
-				"each alias must have a non-empty string alias field",
+				"each alias must be a non-empty string",
 			);
 		}
-		const isPrimary = !!item.is_primary;
-		if (isPrimary) {
-			if (hasPrimary) {
-				return jsonError(
-					c,
-					400,
-					"multiple_primary",
-					"only one alias can be marked as primary",
-				);
-			}
-			hasPrimary = true;
-		}
-		aliases.push({ alias: item.alias.trim(), is_primary: isPrimary });
+		aliases.push(item.trim());
 	}
 
 	const aliasOnly = !!body.alias_only;
 
+	// Find all active channels that have this modelId in their models_json
+	const channels = await listActiveChannels(c.env.DB);
+	const channelIds: string[] = [];
+	for (const ch of channels) {
+		const modelIds = extractModelIds(ch);
+		if (modelIds.includes(modelId)) {
+			channelIds.push(ch.id);
+		}
+	}
+
 	try {
-		await saveAliasesForModel(c.env.DB, modelId, aliases, aliasOnly);
+		await batchSaveAliasesForModel(c.env.DB, modelId, aliases, aliasOnly, channelIds);
 	} catch (error) {
 		const message =
 			error instanceof Error ? error.message : "unknown error";
@@ -85,11 +92,14 @@ modelAliasRoutes.put("/:modelId", async (c) => {
 });
 
 /**
- * Delete all aliases for a model.
+ * Delete all aliases for a model across all channels.
  */
 modelAliasRoutes.delete("/:modelId", async (c) => {
 	const modelId = c.req.param("modelId");
-	await deleteAliasesForModel(c.env.DB, modelId);
+	await c.env.DB
+		.prepare("DELETE FROM channel_model_aliases WHERE model_id = ?")
+		.bind(modelId)
+		.run();
 	return c.json({ ok: true });
 });
 

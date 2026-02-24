@@ -109,7 +109,7 @@ export const UserChannelsView = ({
 		for (const m of models) {
 			if (perChannelMap[m]) {
 				initial[m] = {
-					aliases: perChannelMap[m].aliases.map((a) => ({ ...a })),
+					aliases: [...perChannelMap[m].aliases],
 					alias_only: perChannelMap[m].alias_only,
 				};
 			}
@@ -219,12 +219,12 @@ export const UserChannelsView = ({
 		if (!trimmed) return;
 		setAliasState((prev) => {
 			const existing = prev[modelId] ?? { aliases: [], alias_only: false };
-			if (existing.aliases.some((a) => a.alias === trimmed)) return prev;
+			if (existing.aliases.includes(trimmed)) return prev;
 			return {
 				...prev,
 				[modelId]: {
 					...existing,
-					aliases: [...existing.aliases, { alias: trimmed, is_primary: false }],
+					aliases: [...existing.aliases, trimmed],
 				},
 			};
 		});
@@ -239,23 +239,6 @@ export const UserChannelsView = ({
 				[modelId]: {
 					...existing,
 					aliases: existing.aliases.filter((_, i) => i !== index),
-				},
-			};
-		});
-	}, []);
-
-	const setPrimary = useCallback((modelId: string, index: number) => {
-		setAliasState((prev) => {
-			const existing = prev[modelId];
-			if (!existing) return prev;
-			return {
-				...prev,
-				[modelId]: {
-					...existing,
-					aliases: existing.aliases.map((a, i) => ({
-						...a,
-						is_primary: i === index,
-					})),
 				},
 			};
 		});
@@ -503,17 +486,7 @@ export const UserChannelsView = ({
 																<div class="mb-2 space-y-1.5">
 																	{config.aliases.map((alias, index) => (
 																		<div class="flex items-center gap-2 rounded border border-stone-100 bg-stone-50 px-2 py-1.5">
-																			<label class="flex cursor-pointer items-center gap-1 text-xs text-stone-500">
-																				<input
-																					type="radio"
-																					name={`primary-${modelId}`}
-																					checked={alias.is_primary}
-																					onChange={() => setPrimary(modelId, index)}
-																					class="accent-amber-500"
-																				/>
-																				主名
-																			</label>
-																			<span class="flex-1 break-all font-mono text-xs text-stone-700">{alias.alias}</span>
+																			<span class="flex-1 break-all font-mono text-xs text-stone-700">{alias}</span>
 																			<button
 																				type="button"
 																				class="rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-red-50 hover:text-red-600"

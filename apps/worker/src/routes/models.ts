@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
-import { extractModelPricings, modelsToJson } from "../services/channel-models";
+import { extractModelPricings, extractModelIds, modelsToJson } from "../services/channel-models";
 import { listActiveChannels } from "../services/channel-repo";
-import { listAllAliases, loadAllChannelAliasMap, loadChannelAliasOnlyMap, loadChannelPrimaryNameMap } from "../services/model-aliases";
+import { loadAllChannelAliasesGrouped } from "../services/model-aliases";
 import { jsonError } from "../utils/http";
 
 const models = new Hono<AppEnv>();
@@ -19,9 +19,7 @@ type DailyUsage = { day: string; requests: number; tokens: number };
 
 type ModelResult = {
 	id: string;
-	display_name: string;
-	aliases: Array<{ alias: string; is_primary: boolean }>;
-	alias_only: boolean;
+	real_model_id: string | null;
 	channels: ChannelInfo[];
 	total_requests: number;
 	total_tokens: number;
@@ -31,32 +29,91 @@ type ModelResult = {
 };
 
 /**
+ * Computes the effective model→channel mapping using per-channel aliases.
+ *
+ * For each channel C and each model M in C.models_json:
+ *   aliases = channel_model_aliases WHERE channel_id=C AND model_id=M
+ *   is_alias_only = any alias row has alias_only=1
+ *
+ *   if NOT is_alias_only:
+ *     effectiveMap[M.id] += C    // original name routes to C
+ *
+ *   for each alias A in aliases:
+ *     effectiveMap[A.alias] += C  // alias name routes to C
+ */
+function computeEffectiveMapping(
+	channels: Array<{ id: string; name: string; models_json?: string | null }>,
+	aliasGroups: Map<string, Map<string, { aliases: string[]; alias_only: boolean }>>,
+	pricingMap: Map<string, Map<string, { input_price: number | null; output_price: number | null }>>,
+): Map<string, { realModelId: string | null; channels: Map<string, { id: string; name: string; input_price: number | null; output_price: number | null }> }> {
+	const effectiveMap = new Map<string, { realModelId: string | null; channels: Map<string, { id: string; name: string; input_price: number | null; output_price: number | null }> }>();
+
+	const getOrCreate = (name: string, realModelId: string | null) => {
+		let entry = effectiveMap.get(name);
+		if (!entry) {
+			entry = { realModelId, channels: new Map() };
+			effectiveMap.set(name, entry);
+		}
+		return entry;
+	};
+
+	for (const channel of channels) {
+		const modelIds = extractModelIds(channel);
+		const channelAliases = aliasGroups.get(channel.id);
+		const channelPricing = pricingMap.get(channel.id);
+
+		for (const modelId of modelIds) {
+			const aliasInfo = channelAliases?.get(modelId);
+			const isAliasOnly = aliasInfo?.alias_only ?? false;
+			const pricing = channelPricing?.get(modelId);
+			const chInfo = {
+				id: channel.id,
+				name: channel.name,
+				input_price: pricing?.input_price ?? null,
+				output_price: pricing?.output_price ?? null,
+			};
+
+			// Original name routes to this channel (unless alias_only)
+			if (!isAliasOnly) {
+				const entry = getOrCreate(modelId, null);
+				entry.channels.set(channel.id, chInfo);
+			}
+
+			// Each alias routes to this channel
+			if (aliasInfo) {
+				for (const alias of aliasInfo.aliases) {
+					const entry = getOrCreate(alias, modelId);
+					entry.channels.set(channel.id, chInfo);
+				}
+			}
+		}
+	}
+
+	return effectiveMap;
+}
+
+/**
  * Returns aggregated models with pricing, latency, and usage stats.
  */
 models.get("/", async (c) => {
 	const channels = await listActiveChannels(c.env.DB);
 
-	// Build model -> channels map with pricing
-	const modelMap = new Map<string, ChannelInfo[]>();
-	const modelChannelIds = new Map<string, string[]>();
+	// Build per-channel pricing maps
+	const pricingMap = new Map<string, Map<string, { input_price: number | null; output_price: number | null }>>();
 	for (const channel of channels) {
 		const pricings = extractModelPricings(channel);
+		const modelPriceMap = new Map<string, { input_price: number | null; output_price: number | null }>();
 		for (const p of pricings) {
-			const existing = modelMap.get(p.id) ?? [];
-			existing.push({
-				id: channel.id,
-				name: channel.name,
-				input_price: p.input_price ?? null,
-				output_price: p.output_price ?? null,
-				avg_latency_ms: null,
-			});
-			modelMap.set(p.id, existing);
-
-			const chIds = modelChannelIds.get(p.id) ?? [];
-			chIds.push(channel.id);
-			modelChannelIds.set(p.id, chIds);
+			modelPriceMap.set(p.id, { input_price: p.input_price ?? null, output_price: p.output_price ?? null });
 		}
+		pricingMap.set(channel.id, modelPriceMap);
 	}
+
+	// Load alias data
+	const aliasGroups = await loadAllChannelAliasesGrouped(c.env.DB);
+
+	// Compute effective mapping
+	const effectiveMap = computeEffectiveMapping(channels, aliasGroups, pricingMap);
 
 	// Aggregate usage stats from last 30 days
 	const usageAgg = await c.env.DB.prepare(
@@ -139,50 +196,29 @@ models.get("/", async (c) => {
 		channelLatencyMap.set(`${row.model}:${row.channel_id}`, row.avg_latency_ms);
 	}
 
-	// Load aliases for display_name (global + per-channel)
-	const aliasMap = await listAllAliases(c.env.DB);
-	const channelPrimaryNames = await loadChannelPrimaryNameMap(c.env.DB);
-	const channelAliasOnlyMap = await loadChannelAliasOnlyMap(c.env.DB);
-	const channelAliasMap = await loadAllChannelAliasMap(c.env.DB);
-
-	// Build result
-	const modelIdSet = new Set(modelMap.keys());
+	// Build result from effective mapping
 	const results: ModelResult[] = [];
-	for (const [modelId, channelInfos] of modelMap) {
-		const usage = usageMap.get(modelId);
+	for (const [callableName, entry] of effectiveMap) {
+		// Usage: look up by callable name first, then by real model id
+		const usageKey = entry.realModelId ?? callableName;
+		const usage = usageMap.get(callableName) ?? usageMap.get(usageKey);
+
 		// Enrich channels with per-channel latency
-		const enrichedChannels = channelInfos.map((ch) => ({
-			...ch,
-			avg_latency_ms:
-				channelLatencyMap.get(`${modelId}:${ch.id}`) != null
-					? Math.round(channelLatencyMap.get(`${modelId}:${ch.id}`)!)
-					: null,
-		}));
-
-		const aliases = aliasMap.get(modelId) ?? [];
-		const globalAliasOnly = aliases.length > 0 && aliases[0].alias_only;
-
-		// Check per-channel alias_only: hide if ALL providing channels have alias_only
-		const providers = modelChannelIds.get(modelId) ?? [];
-		let perChannelAllAliasOnly = false;
-		if (!globalAliasOnly && providers.length > 0) {
-			perChannelAllAliasOnly = providers.every((chId) => {
-				const aoModels = channelAliasOnlyMap.get(chId);
-				return aoModels?.has(modelId) ?? false;
+		const enrichedChannels: ChannelInfo[] = [];
+		for (const [, ch] of entry.channels) {
+			const latencyKey = `${usageKey}:${ch.id}`;
+			enrichedChannels.push({
+				...ch,
+				avg_latency_ms:
+					channelLatencyMap.get(latencyKey) != null
+						? Math.round(channelLatencyMap.get(latencyKey)!)
+						: null,
 			});
 		}
 
-		const aliasOnly = globalAliasOnly || perChannelAllAliasOnly;
-
-		// display_name: global primary > per-channel primary > model_id
-		const primary = aliases.find((a) => a.is_primary);
-		const displayName = primary ? primary.alias : (channelPrimaryNames.get(modelId) ?? modelId);
-
 		results.push({
-			id: modelId,
-			display_name: displayName,
-			aliases: aliases.map((a) => ({ alias: a.alias, is_primary: a.is_primary })),
-			alias_only: aliasOnly,
+			id: callableName,
+			real_model_id: entry.realModelId,
 			channels: enrichedChannels,
 			total_requests: usage?.total_requests ?? 0,
 			total_tokens: usage?.total_tokens ?? 0,
@@ -190,39 +226,8 @@ models.get("/", async (c) => {
 			avg_latency_ms: usage?.avg_latency_ms
 				? Math.round(usage.avg_latency_ms)
 				: null,
-			daily: dailyMap.get(modelId) ?? [],
+			daily: dailyMap.get(callableName) ?? dailyMap.get(usageKey) ?? [],
 		});
-	}
-
-	// Add per-channel alias entries that aren't already listed
-	const listedIds = new Set(results.map((r) => r.id));
-	for (const [alias, targetModelId] of channelAliasMap) {
-		if (modelIdSet.has(targetModelId) && !listedIds.has(alias)) {
-			const targetUsage = usageMap.get(targetModelId);
-			const targetChannels = modelMap.get(targetModelId) ?? [];
-			const enrichedChannels = targetChannels.map((ch) => ({
-				...ch,
-				avg_latency_ms:
-					channelLatencyMap.get(`${targetModelId}:${ch.id}`) != null
-						? Math.round(channelLatencyMap.get(`${targetModelId}:${ch.id}`)!)
-						: null,
-			}));
-			results.push({
-				id: alias,
-				display_name: alias,
-				aliases: [],
-				alias_only: false,
-				channels: enrichedChannels,
-				total_requests: targetUsage?.total_requests ?? 0,
-				total_tokens: targetUsage?.total_tokens ?? 0,
-				total_cost: targetUsage?.total_cost ?? 0,
-				avg_latency_ms: targetUsage?.avg_latency_ms
-					? Math.round(targetUsage.avg_latency_ms)
-					: null,
-				daily: dailyMap.get(targetModelId) ?? [],
-			});
-			listedIds.add(alias);
-		}
 	}
 
 	return c.json({ models: results });

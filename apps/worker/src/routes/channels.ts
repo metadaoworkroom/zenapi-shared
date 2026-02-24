@@ -25,7 +25,7 @@ import { normalizeBaseUrl } from "../utils/url";
 const channels = new Hono<AppEnv>();
 
 type AliasConfig = {
-	aliases: Array<{ alias: string; is_primary: boolean }>;
+	aliases: string[];
 	alias_only: boolean;
 };
 
@@ -83,10 +83,10 @@ channels.get("/", async (c) => {
 			const batch = channelIds.slice(i, i + BATCH_SIZE);
 			const placeholders = batch.map(() => "?").join(",");
 			const aliasRows = await c.env.DB.prepare(
-				`SELECT channel_id, model_id, alias, is_primary, alias_only FROM channel_model_aliases WHERE channel_id IN (${placeholders}) ORDER BY channel_id, model_id, is_primary DESC, alias`,
+				`SELECT channel_id, model_id, alias, alias_only FROM channel_model_aliases WHERE channel_id IN (${placeholders}) ORDER BY channel_id, model_id, alias`,
 			)
 				.bind(...batch)
-				.all<{ channel_id: string; model_id: string; alias: string; is_primary: number; alias_only: number }>();
+				.all<{ channel_id: string; model_id: string; alias: string; alias_only: number }>();
 
 			for (const row of aliasRows.results ?? []) {
 				if (!channelAliases[row.channel_id]) {
@@ -96,10 +96,7 @@ channels.get("/", async (c) => {
 				if (!chMap[row.model_id]) {
 					chMap[row.model_id] = { aliases: [], alias_only: false };
 				}
-				chMap[row.model_id].aliases.push({
-					alias: row.alias,
-					is_primary: row.is_primary === 1,
-				});
+				chMap[row.model_id].aliases.push(row.alias);
 				if (row.alias_only === 1) {
 					chMap[row.model_id].alias_only = true;
 				}
@@ -165,7 +162,7 @@ channels.post("/", async (c) => {
 				c.env.DB,
 				id,
 				modelId,
-				config.aliases?.map((a) => ({ alias: a.alias, is_primary: a.is_primary })) ?? [],
+				(config.aliases ?? []).map((a: string) => ({ alias: a })),
 				config.alias_only ?? false,
 			);
 		}
@@ -230,7 +227,7 @@ channels.patch("/:id", async (c) => {
 				c.env.DB,
 				id,
 				modelId,
-				config.aliases?.map((a) => ({ alias: a.alias, is_primary: a.is_primary })) ?? [],
+				(config.aliases ?? []).map((a: string) => ({ alias: a })),
 				config.alias_only ?? false,
 			);
 		}

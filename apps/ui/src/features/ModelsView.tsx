@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "hono/jsx/dom";
-import type { ModelAlias, ModelItem } from "../core/types";
+import type { ModelItem } from "../core/types";
 import { buildPageItems } from "../core/utils";
 
 type ModelsViewProps = {
 	models: ModelItem[];
 	onAliasSave?: (
 		modelId: string,
-		aliases: Array<{ alias: string; is_primary: boolean }>,
+		aliases: string[],
 		aliasOnly?: boolean,
 	) => Promise<void>;
 	onPriceSave?: (
@@ -77,22 +77,22 @@ const ModelCard = ({
 	model,
 	onAliasClick,
 	onPriceClick,
-	compact,
-}: { model: ModelItem; onAliasClick?: () => void; onPriceClick?: () => void; compact?: boolean }) => {
-	const showSubtitle = !compact && model.display_name !== model.id;
+}: { model: ModelItem; onAliasClick?: () => void; onPriceClick?: () => void }) => {
 	return (
 		<div class="rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
 			<div class="mb-2 flex items-start justify-between gap-2">
 				<div class="min-w-0 flex-1">
 					<h4 class="break-all font-['Space_Grotesk'] text-sm font-semibold tracking-tight text-stone-900">
-						{model.display_name}
+						{model.id}
 					</h4>
-					{showSubtitle && (
-						<p class="mt-0.5 break-all text-xs text-stone-400">{model.id}</p>
+					{model.real_model_id && (
+						<p class="mt-0.5 break-all text-xs text-amber-600">
+							→ {model.real_model_id}
+						</p>
 					)}
 				</div>
 				<div class="flex shrink-0 items-center gap-1.5">
-					{onAliasClick && (
+					{onAliasClick && !model.real_model_id && (
 						<button
 							type="button"
 							class="rounded-full border border-stone-200 bg-white px-2 py-0.5 text-xs text-stone-500 transition-colors hover:border-amber-300 hover:text-amber-600"
@@ -101,7 +101,7 @@ const ModelCard = ({
 							别名
 						</button>
 					)}
-					{onPriceClick && (
+					{onPriceClick && !model.real_model_id && (
 						<button
 							type="button"
 							class="rounded-full border border-stone-200 bg-white px-2 py-0.5 text-xs text-stone-500 transition-colors hover:border-emerald-300 hover:text-emerald-600"
@@ -194,14 +194,12 @@ const AliasEditModal = ({
 	onClose,
 }: {
 	modelId: string;
-	initialAliases: ModelAlias[];
+	initialAliases: string[];
 	initialAliasOnly: boolean;
-	onSave: (aliases: Array<{ alias: string; is_primary: boolean }>, aliasOnly: boolean) => Promise<void>;
+	onSave: (aliases: string[], aliasOnly: boolean) => Promise<void>;
 	onClose: () => void;
 }) => {
-	const [aliases, setAliases] = useState<
-		Array<{ alias: string; is_primary: boolean }>
-	>(() => initialAliases.map((a) => ({ ...a })));
+	const [aliases, setAliases] = useState<string[]>(() => [...initialAliases]);
 	const [aliasOnly, setAliasOnly] = useState(initialAliasOnly);
 	const [newAlias, setNewAlias] = useState("");
 	const [saving, setSaving] = useState(false);
@@ -209,19 +207,13 @@ const AliasEditModal = ({
 	const handleAdd = () => {
 		const trimmed = newAlias.trim();
 		if (!trimmed) return;
-		if (aliases.some((a) => a.alias === trimmed)) return;
-		setAliases((prev) => [...prev, { alias: trimmed, is_primary: false }]);
+		if (aliases.includes(trimmed)) return;
+		setAliases((prev) => [...prev, trimmed]);
 		setNewAlias("");
 	};
 
 	const handleRemove = (index: number) => {
 		setAliases((prev) => prev.filter((_, i) => i !== index));
-	};
-
-	const handlePrimaryChange = (index: number) => {
-		setAliases((prev) =>
-			prev.map((a, i) => ({ ...a, is_primary: i === index })),
-		);
 	};
 
 	const handleSave = async () => {
@@ -263,21 +255,11 @@ const AliasEditModal = ({
 					)}
 					{aliases.map((alias, index) => (
 						<div
-							key={alias.alias}
+							key={alias}
 							class="flex items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2"
 						>
-							<label class="flex cursor-pointer items-center gap-1.5 text-xs text-stone-500">
-								<input
-									type="radio"
-									name="primary-alias"
-									checked={alias.is_primary}
-									onChange={() => handlePrimaryChange(index)}
-									class="accent-amber-500"
-								/>
-								主名
-							</label>
 							<span class="flex-1 break-all font-mono text-sm text-stone-800">
-								{alias.alias}
+								{alias}
 							</span>
 							<button
 								type="button"
@@ -512,104 +494,19 @@ const PriceEditModal = ({
 
 const pageSizeOptions = [12, 24, 48];
 
-/** Merge models that share the same display_name into single virtual cards. */
-function mergeByDisplayName(models: ModelItem[]): ModelItem[] {
-	const groups = new Map<string, ModelItem[]>();
-	for (const m of models) {
-		const key = m.display_name;
-		const arr = groups.get(key) ?? [];
-		arr.push(m);
-		groups.set(key, arr);
-	}
-	const merged: ModelItem[] = [];
-	for (const [displayName, group] of groups) {
-		if (group.length === 1) {
-			merged.push(group[0]);
-			continue;
-		}
-		// Deduplicate channels by id
-		const seenChannels = new Set<string>();
-		const channels: ModelItem["channels"] = [];
-		for (const m of group) {
-			for (const ch of m.channels) {
-				if (!seenChannels.has(ch.id)) {
-					seenChannels.add(ch.id);
-					channels.push(ch);
-				}
-			}
-		}
-		// Merge daily data by day
-		const dailyMap = new Map<string, { requests: number; tokens: number }>();
-		for (const m of group) {
-			for (const d of m.daily) {
-				const existing = dailyMap.get(d.day);
-				if (existing) {
-					existing.requests += d.requests;
-					existing.tokens += d.tokens;
-				} else {
-					dailyMap.set(d.day, { requests: d.requests, tokens: d.tokens });
-				}
-			}
-		}
-		const daily = Array.from(dailyMap.entries())
-			.sort(([a], [b]) => a.localeCompare(b))
-			.map(([day, v]) => ({ day, ...v }));
-		// Merge all aliases from all sub-models
-		const allAliases: ModelItem["aliases"] = [];
-		for (const m of group) {
-			allAliases.push(...m.aliases);
-		}
-		// Sum numeric stats
-		const totalRequests = group.reduce((s, m) => s + m.total_requests, 0);
-		const totalTokens = group.reduce((s, m) => s + m.total_tokens, 0);
-		const totalCost = group.reduce((s, m) => s + m.total_cost, 0);
-		const latencies = group
-			.map((m) => m.avg_latency_ms)
-			.filter((v): v is number => v != null);
-		const avgLatency =
-			latencies.length > 0
-				? Math.round(latencies.reduce((s, v) => s + v, 0) / latencies.length)
-				: null;
-
-		merged.push({
-			id: displayName,
-			display_name: displayName,
-			aliases: allAliases,
-			alias_only: group.some((m) => m.alias_only),
-			channels,
-			total_requests: totalRequests,
-			total_tokens: totalTokens,
-			total_cost: totalCost,
-			avg_latency_ms: avgLatency,
-			daily,
-		});
-	}
-	return merged;
-}
-
 export const ModelsView = ({ models, onAliasSave, onPriceSave }: ModelsViewProps) => {
 	const [search, setSearch] = useState("");
 	const [pageSize, setPageSize] = useState(12);
 	const [page, setPage] = useState(1);
 	const [aliasModelId, setAliasModelId] = useState<string | null>(null);
 	const [priceModelId, setPriceModelId] = useState<string | null>(null);
-	const [primaryMode, setPrimaryMode] = useState(false);
-
-	const displayModels = useMemo(
-		() => (primaryMode ? mergeByDisplayName(models) : models),
-		[models, primaryMode],
-	);
 
 	const filtered = search
-		? displayModels.filter((m) => {
+		? models.filter((m) => {
 				const lower = search.toLowerCase();
-				return (
-					m.id.toLowerCase().includes(lower) ||
-					m.display_name.toLowerCase().includes(lower) ||
-					m.aliases.some((a) => a.alias.toLowerCase().includes(lower))
-				);
+				return m.id.toLowerCase().includes(lower);
 			})
-		: displayModels;
+		: models;
 
 	const total = filtered.length;
 	const totalPages = useMemo(
@@ -636,8 +533,25 @@ export const ModelsView = ({ models, onAliasSave, onPriceSave }: ModelsViewProps
 		[page, totalPages],
 	);
 
+	// For alias editing, we need to find all aliases for this real model
+	// by looking at other models that have real_model_id pointing to it
+	const getAliasesForModel = (modelId: string): { aliases: string[]; aliasOnly: boolean } => {
+		const aliases: string[] = [];
+		let aliasOnly = false;
+		for (const m of models) {
+			if (m.real_model_id === modelId) {
+				aliases.push(m.id);
+				aliasOnly = true; // If there are alias entries, check if original is missing
+			}
+		}
+		// If the original model is not in the list, it means alias_only is true
+		const originalExists = models.some((m) => m.id === modelId && m.real_model_id === null);
+		aliasOnly = aliases.length > 0 && !originalExists;
+		return { aliases, aliasOnly };
+	};
+
 	const aliasModel = aliasModelId
-		? models.find((m) => m.id === aliasModelId) ?? null
+		? models.find((m) => m.id === aliasModelId && m.real_model_id === null) ?? null
 		: null;
 
 	const priceModel = priceModelId
@@ -652,19 +566,8 @@ export const ModelsView = ({ models, onAliasSave, onPriceSave }: ModelsViewProps
 						模型广场
 					</h3>
 					<span class="rounded-full bg-stone-100 px-2.5 py-1 text-xs text-stone-500">
-						{filtered.length} / {displayModels.length} 个模型
+						{filtered.length} / {models.length} 个模型
 					</span>
-					<button
-						type="button"
-						class={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-							primaryMode
-								? "border-amber-400 bg-amber-50 text-amber-700"
-								: "border-stone-200 bg-white text-stone-500 hover:border-stone-300"
-						}`}
-						onClick={() => setPrimaryMode((v) => !v)}
-					>
-						{primaryMode ? "主名模式" : "普通模式"}
-					</button>
 				</div>
 				<input
 					class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:w-64"
@@ -688,14 +591,13 @@ export const ModelsView = ({ models, onAliasSave, onPriceSave }: ModelsViewProps
 							<ModelCard
 								key={model.id}
 								model={model}
-								compact={primaryMode}
 								onAliasClick={
-									onAliasSave && !primaryMode
+									onAliasSave && !model.real_model_id
 										? () => setAliasModelId(model.id)
 										: undefined
 								}
 								onPriceClick={
-									onPriceSave && !primaryMode
+									onPriceSave && !model.real_model_id
 										? () => setPriceModelId(model.id)
 										: undefined
 								}
@@ -766,15 +668,18 @@ export const ModelsView = ({ models, onAliasSave, onPriceSave }: ModelsViewProps
 					</div>
 				</>
 			)}
-			{aliasModel && onAliasSave && (
-				<AliasEditModal
-					modelId={aliasModel.id}
-					initialAliases={aliasModel.aliases}
-					initialAliasOnly={aliasModel.alias_only ?? false}
-					onSave={(aliases, aliasOnly) => onAliasSave(aliasModel.id, aliases, aliasOnly)}
-					onClose={() => setAliasModelId(null)}
-				/>
-			)}
+			{aliasModel && onAliasSave && (() => {
+				const { aliases, aliasOnly } = getAliasesForModel(aliasModel.id);
+				return (
+					<AliasEditModal
+						modelId={aliasModel.id}
+						initialAliases={aliases}
+						initialAliasOnly={aliasOnly}
+						onSave={(newAliases, newAliasOnly) => onAliasSave(aliasModel.id, newAliases, newAliasOnly)}
+						onClose={() => setAliasModelId(null)}
+					/>
+				);
+			})()}
 			{priceModel && onPriceSave && (
 				<PriceEditModal
 					modelId={priceModel.id}

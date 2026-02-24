@@ -3,7 +3,7 @@ import type { AppEnv } from "../env";
 import { type TokenRecord, tokenAuth } from "../middleware/tokenAuth";
 import { type ChannelRecord, createWeightedOrder } from "../services/channels";
 import { resolveChannelRoute } from "../services/channel-route";
-import { resolveModelNames, loadAliasOnlySet, loadChannelAliasesByAlias, loadChannelAliasOnlyMap } from "../services/model-aliases";
+import { loadChannelAliasesByAlias, loadChannelAliasOnlyMap } from "../services/model-aliases";
 import {
 	anthropicToOpenaiRequest,
 	createOpenaiToAnthropicStreamTransform,
@@ -23,7 +23,7 @@ import {
 	parseUsageFromHeaders,
 	parseUsageFromSse,
 } from "../utils/usage";
-import { channelSupportsModel, channelSupportsSharedModel, channelSupportsAnyModel, channelSupportsAnySharedModel, filterAllowedChannels, findChannelModelName } from "./proxy";
+import { channelSupportsModel, channelSupportsSharedModel, filterAllowedChannels } from "./proxy";
 
 const anthropicProxy = new Hono<AppEnv>();
 
@@ -47,21 +47,12 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 			: null;
 	const isStream = parsedBody?.stream === true;
 
-	// Resolve model aliases — returns all model IDs this name can route to
-	const resolvedNames = model ? await resolveModelNames(c.env.DB, model) : [];
-
 	// Resolve per-channel aliases for this model name
 	const channelAliasHits = model ? await loadChannelAliasesByAlias(c.env.DB, model) : [];
 	const channelAliasHitMap = new Map(channelAliasHits.map((h) => [h.channel_id, h]));
 
-	// Block requests using the original name of alias-only models
-	// But don't block if per-channel alias hits exist for this name
-	if (model && resolvedNames.length === 1 && channelAliasHits.length === 0) {
-		const aliasOnlySet = await loadAliasOnlySet(c.env.DB);
-		if (aliasOnlySet.has(model)) {
-			return jsonError(c, 404, "model_not_found", `The model '${model}' does not exist or is not available.`);
-		}
-	}
+	// Load per-channel alias-only map
+	const perChannelAliasOnlyMap = await loadChannelAliasOnlyMap(c.env.DB);
 
 	// Convert Anthropic request -> OpenAI format for internal use
 	const openaiBody = parsedBody ? anthropicToOpenaiRequest(parsedBody) : null;
@@ -98,22 +89,17 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 		candidates = [targetChannel];
 	} else {
 		const allowedChannels = filterAllowedChannels(activeChannels, tokenRecord);
-		// Load per-channel alias-only map for filtering (always needed, not just when alias hits exist)
-		const perChannelAliasOnlyMap = await loadChannelAliasOnlyMap(c.env.DB);
-		if (resolvedNames.length > 0) {
+		if (model) {
 			const supportsFn = useSharedFilter
-				? channelSupportsAnySharedModel
-				: channelSupportsAnyModel;
+				? channelSupportsSharedModel
+				: channelSupportsModel;
 			candidates = allowedChannels.filter((channel) => {
-				// Channel matched via per-channel alias
+				// Channel matched via per-channel alias → include
 				if (channelAliasHitMap.has(channel.id)) return true;
-				// Channel matched via global alias — but exclude if per-channel alias_only
-				if (supportsFn(channel, resolvedNames)) {
+				// Channel natively supports this model → include UNLESS alias_only
+				if (supportsFn(channel, model)) {
 					const aliasOnlyModels = perChannelAliasOnlyMap.get(channel.id);
-					if (aliasOnlyModels) {
-						return !resolvedNames.every((n) => aliasOnlyModels.has(n));
-					}
-					return true;
+					return !(aliasOnlyModels?.has(model));
 				}
 				return false;
 			});
@@ -171,15 +157,6 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 					channelRequestText = JSON.stringify(channelParsedBody);
 					if (openaiBody) {
 						channelOpenaiBody = { ...openaiBody, model: channelModelName };
-					}
-				} else if (resolvedNames.length > 1) {
-					channelModelName = findChannelModelName(channel, resolvedNames);
-					if (channelModelName !== model) {
-						const channelParsedBody = { ...parsedBody, model: channelModelName };
-						channelRequestText = JSON.stringify(channelParsedBody);
-						if (openaiBody) {
-							channelOpenaiBody = { ...openaiBody, model: channelModelName };
-						}
 					}
 				}
 			}

@@ -343,7 +343,7 @@ export const ChannelsView = ({
 			[modelId]: {
 				aliases: [
 					...(channelAliasState[modelId]?.aliases ?? []),
-					...(channelAliasState[modelId]?.aliases?.some((a) => a.alias === trimmed) ? [] : [{ alias: trimmed, is_primary: false }]),
+					...(channelAliasState[modelId]?.aliases?.includes(trimmed) ? [] : [trimmed]),
 				],
 				alias_only: channelAliasState[modelId]?.alias_only ?? false,
 			},
@@ -358,18 +358,6 @@ export const ChannelsView = ({
 			[modelId]: {
 				...existing,
 				aliases: existing.aliases.filter((_, i) => i !== index),
-			},
-		});
-	}, [channelAliasState, onChannelAliasStateChange]);
-
-	const setAliasPrimary = useCallback((modelId: string, index: number) => {
-		const existing = channelAliasState[modelId];
-		if (!existing) return;
-		onChannelAliasStateChange({
-			...channelAliasState,
-			[modelId]: {
-				...existing,
-				aliases: existing.aliases.map((a, i) => ({ ...a, is_primary: i === index })),
 			},
 		});
 	}, [channelAliasState, onChannelAliasStateChange]);
@@ -865,17 +853,7 @@ export const ChannelsView = ({
 																	<div class="mb-2 space-y-1.5">
 																		{config.aliases.map((alias, index) => (
 																			<div class="flex items-center gap-2 rounded border border-stone-100 bg-stone-50 px-2 py-1.5">
-																				<label class="flex cursor-pointer items-center gap-1 text-xs text-stone-500">
-																					<input
-																						type="radio"
-																						name={`admin-primary-${modelId}`}
-																						checked={alias.is_primary}
-																						onChange={() => setAliasPrimary(modelId, index)}
-																						class="accent-amber-500"
-																					/>
-																					主名
-																				</label>
-																				<span class="flex-1 break-all font-mono text-xs text-stone-700">{alias.alias}</span>
+																				<span class="flex-1 break-all font-mono text-xs text-stone-700">{alias}</span>
 																				<button
 																					type="button"
 																					class="rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-red-50 hover:text-red-600"
