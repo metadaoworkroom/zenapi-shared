@@ -128,6 +128,7 @@ export const UserDashboard = ({ data, user, token, updateToken, linuxdoEnabled, 
 	const [tipUrl, setTipUrl] = useState(user.tip_url ?? "");
 	const [profileNotice, setProfileNotice] = useState("");
 	const [checkinLoading, setCheckinLoading] = useState(false);
+	const [checkinNotice, setCheckinNotice] = useState("");
 
 	const apiFetch = useMemo(
 		() => createApiFetch(token, () => updateToken(null)),
@@ -141,13 +142,13 @@ export const UserDashboard = ({ data, user, token, updateToken, linuxdoEnabled, 
 				method: "POST",
 			});
 			if (result.already_checked_in) {
-				setProfileNotice("今日已签到");
+				setCheckinNotice("今日已签到");
 			} else if (result.ok) {
-				setProfileNotice(`签到成功，获得 $${result.reward?.toFixed(2) ?? "0"}`);
+				setCheckinNotice(`签到成功，获得 $${result.reward?.toFixed(2) ?? "0"}`);
 				onUserRefresh();
 			}
 		} catch (error) {
-			setProfileNotice((error as Error).message);
+			setCheckinNotice((error as Error).message);
 		} finally {
 			setCheckinLoading(false);
 		}
@@ -206,6 +207,11 @@ export const UserDashboard = ({ data, user, token, updateToken, linuxdoEnabled, 
 						</button>
 					)}
 				</div>
+				{checkinNotice && (
+					<div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
+						{checkinNotice}
+					</div>
+				)}
 			</div>
 
 			{/* Stats cards */}
