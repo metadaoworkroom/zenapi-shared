@@ -364,7 +364,7 @@ userApi.get("/dashboard", async (c) => {
 
 	return c.json({
 		balance: user.balance,
-		withdrawable_balance: user.withdrawable_balance,
+		withdrawable_balance: Math.min(user.balance, user.withdrawable_balance),
 		total_requests: summary?.total_requests ?? 0,
 		total_tokens: summary?.total_tokens ?? 0,
 		total_cost: summary?.total_cost ?? 0,
