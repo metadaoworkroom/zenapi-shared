@@ -116,7 +116,8 @@ app.use("/api/*", async (c, next) => {
 		p === "/api/user" || p.startsWith("/api/user/") ||
 		p === "/api/group" || p.startsWith("/api/group/") ||
 		p.startsWith("/api/public") ||
-		p.startsWith("/api/u/")
+		p.startsWith("/api/u/") ||
+		p.startsWith("/api/recharge")
 	) {
 		return next();
 	}
@@ -144,7 +145,7 @@ app.route("/api/users", adminUserRoutes);
 app.route("/api/u/auth", userAuthRoutes);
 app.route("/api/u", userApiRoutes);
 app.route("/api/u/channels", userChannelRoutes);
-app.route("/api/u/recharge", rechargeRoutes);
+app.route("/api/recharge", rechargeRoutes);
 
 app.route("/v1", proxyRoutes);
 app.route("/anthropic/v1", anthropicProxyRoutes);

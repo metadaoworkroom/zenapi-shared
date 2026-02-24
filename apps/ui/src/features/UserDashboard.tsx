@@ -179,7 +179,7 @@ export const UserDashboard = ({ data, user, token, updateToken, linuxdoEnabled, 
 		setRechargeLoading(true);
 		setRechargeNotice("");
 		try {
-			const result = await apiFetch<{ order_id: string; redirect_url: string }>("/api/u/recharge/create", {
+			const result = await apiFetch<{ order_id: string; redirect_url: string }>("/api/recharge/create", {
 				method: "POST",
 				body: JSON.stringify({ ldc_amount: amount }),
 			});

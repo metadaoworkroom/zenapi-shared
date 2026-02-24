@@ -78,8 +78,8 @@ recharge.post("/create", userAuth, async (c) => {
 	// Build base URL for callbacks
 	const reqUrl = new URL(c.req.url);
 	const baseUrl = `${reqUrl.protocol}//${reqUrl.host}`;
-	const notifyUrl = `${baseUrl}/api/u/recharge/notify`;
-	const returnUrl = `${baseUrl}/api/u/recharge/return?out_trade_no=${encodeURIComponent(outTradeNo)}`;
+	const notifyUrl = `${baseUrl}/api/recharge/notify`;
+	const returnUrl = `${baseUrl}/api/recharge/return?out_trade_no=${encodeURIComponent(outTradeNo)}`;
 
 	const params: Record<string, string> = {
 		pid,
