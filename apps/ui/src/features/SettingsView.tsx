@@ -148,7 +148,7 @@ export const SettingsView = ({
 					}}
 				>
 					{siteModeOptions.map((opt) => (
-						<option key={opt.value} value={opt.value}>
+						<option key={opt.value} value={opt.value} selected={settingsForm.site_mode === opt.value}>
 							{opt.label} — {opt.desc}
 						</option>
 					))}
@@ -176,7 +176,7 @@ export const SettingsView = ({
 					}}
 				>
 					{registrationModeOptions.map((opt) => (
-						<option key={opt.value} value={opt.value}>
+						<option key={opt.value} value={opt.value} selected={settingsForm.registration_mode === opt.value}>
 							{opt.label} — {opt.desc}
 						</option>
 					))}
