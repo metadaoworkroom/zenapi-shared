@@ -136,6 +136,8 @@ export type Settings = {
 	admin_password_set?: boolean;
 	site_mode: SiteMode;
 	registration_mode: RegistrationMode;
+	checkin_reward: number;
+	require_invite_code: boolean;
 };
 
 export type ModelChannel = {
@@ -199,6 +201,8 @@ export type SettingsForm = {
 	admin_password: string;
 	site_mode: SiteMode;
 	registration_mode: RegistrationMode;
+	checkin_reward: string;
+	require_invite_code: string;
 };
 
 // User types
@@ -240,6 +244,8 @@ export type UserDashboardData = {
 	total_cost: number;
 	recent_usage: Array<{ day: string; requests: number; cost: number }>;
 	contributions: ContributionEntry[];
+	checked_in_today: boolean;
+	checkin_reward: number;
 };
 
 export type UserTabId =
@@ -262,4 +268,14 @@ export type PublicModelItem = {
 		input_price: number | null;
 		output_price: number | null;
 	}>;
+};
+
+export type InviteCode = {
+	id: string;
+	code: string;
+	max_uses: number;
+	used_count: number;
+	status: string;
+	created_by: string | null;
+	created_at: string;
 };

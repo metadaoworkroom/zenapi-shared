@@ -16,6 +16,7 @@ import type {
 	Channel,
 	ChannelForm,
 	DashboardData,
+	InviteCode,
 	ModelItem,
 	MonitoringData,
 	Settings,
@@ -99,6 +100,7 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 	const [isTokenModalOpen, setTokenModalOpen] = useState(false);
 	const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const [users, setUsers] = useState<User[]>([]);
+	const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
 
 	const apiFetch = useMemo(
 		() => createApiFetch(token, () => updateToken(null)),
@@ -143,6 +145,10 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 	const loadSettings = useCallback(async () => {
 		const settings = await apiFetch<Settings>("/api/settings");
 		setData((prev) => ({ ...prev, settings }));
+		if (settings.require_invite_code) {
+			const result = await apiFetch<{ codes: InviteCode[] }>("/api/invite-codes");
+			setInviteCodes(result.codes);
+		}
 	}, [apiFetch]);
 
 	const loadUsers = useCallback(async () => {
@@ -203,6 +209,8 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 			admin_password: "",
 			site_mode: data.settings.site_mode ?? "personal",
 			registration_mode: data.settings.registration_mode ?? "open",
+			checkin_reward: String(data.settings.checkin_reward ?? 0.5),
+			require_invite_code: data.settings.require_invite_code ? "true" : "false",
 		});
 	}, [data.settings]);
 
@@ -475,11 +483,13 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 			event.preventDefault();
 			const retention = Number(settingsForm.log_retention_days);
 			const sessionTtlHours = Number(settingsForm.session_ttl_hours);
-			const payload: Record<string, number | string> = {
+			const payload: Record<string, number | string | boolean> = {
 				log_retention_days: retention,
 				session_ttl_hours: sessionTtlHours,
 				site_mode: settingsForm.site_mode,
 				registration_mode: settingsForm.registration_mode,
+				checkin_reward: Number(settingsForm.checkin_reward),
+				require_invite_code: settingsForm.require_invite_code === "true",
 			};
 			const password = settingsForm.admin_password.trim();
 			if (password) {
@@ -603,6 +613,54 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 		},
 		[apiFetch, loadTokens],
 	);
+
+	const handleGenerateCodes = useCallback(
+		async (count: number, maxUses: number, prefix: string) => {
+			try {
+				await apiFetch("/api/invite-codes", {
+					method: "POST",
+					body: JSON.stringify({ count, max_uses: maxUses, prefix }),
+				});
+				const result = await apiFetch<{ codes: InviteCode[] }>("/api/invite-codes");
+				setInviteCodes(result.codes);
+				setNotice("邀请码已生成");
+			} catch (error) {
+				setNotice((error as Error).message);
+			}
+		},
+		[apiFetch],
+	);
+
+	const handleDeleteCode = useCallback(
+		async (id: string) => {
+			try {
+				await apiFetch(`/api/invite-codes/${id}`, { method: "DELETE" });
+				const result = await apiFetch<{ codes: InviteCode[] }>("/api/invite-codes");
+				setInviteCodes(result.codes);
+				setNotice("邀请码已删除");
+			} catch (error) {
+				setNotice((error as Error).message);
+			}
+		},
+		[apiFetch],
+	);
+
+	const handleExportCodes = useCallback(async () => {
+		try {
+			const res = await fetch("/api/invite-codes/export", {
+				headers: { "x-admin-token": token },
+			});
+			const text = await res.text();
+			try {
+				await navigator.clipboard.writeText(text);
+				setNotice("邀请码已复制到剪贴板");
+			} catch {
+				setNotice(`邀请码:\n${text}`);
+			}
+		} catch (error) {
+			setNotice((error as Error).message);
+		}
+	}, [token]);
 
 	const handleUsageRefresh = useCallback(async () => {
 		try {
@@ -835,6 +893,10 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 					adminPasswordSet={data.settings?.admin_password_set ?? false}
 					onSubmit={handleSettingsSubmit}
 					onFormChange={handleSettingsFormChange}
+					inviteCodes={inviteCodes}
+					onGenerateCodes={handleGenerateCodes}
+					onDeleteCode={handleDeleteCode}
+					onExportCodes={handleExportCodes}
 				/>
 			);
 		}

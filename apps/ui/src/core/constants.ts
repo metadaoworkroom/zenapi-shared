@@ -54,4 +54,6 @@ export const initialSettingsForm: SettingsForm = {
 	admin_password: "",
 	site_mode: "personal",
 	registration_mode: "open",
+	checkin_reward: "0.5",
+	require_invite_code: "false",
 };

@@ -179,3 +179,45 @@ export async function listSettings(
 	}
 	return map;
 }
+
+const CHECKIN_REWARD_KEY = "checkin_reward";
+const DEFAULT_CHECKIN_REWARD = 0.5;
+
+/**
+ * Returns the check-in reward amount from settings or default fallback.
+ */
+export async function getCheckinReward(db: D1Database): Promise<number> {
+	const value = await readSetting(db, CHECKIN_REWARD_KEY);
+	return parsePositiveNumber(value, DEFAULT_CHECKIN_REWARD);
+}
+
+/**
+ * Updates the check-in reward amount setting.
+ */
+export async function setCheckinReward(
+	db: D1Database,
+	amount: number,
+): Promise<void> {
+	const value = Math.max(0.01, amount).toString();
+	await upsertSetting(db, CHECKIN_REWARD_KEY, value);
+}
+
+const REQUIRE_INVITE_CODE_KEY = "require_invite_code";
+
+/**
+ * Returns whether invite code is required for registration.
+ */
+export async function getRequireInviteCode(db: D1Database): Promise<boolean> {
+	const value = await readSetting(db, REQUIRE_INVITE_CODE_KEY);
+	return value === "true";
+}
+
+/**
+ * Updates the require invite code setting.
+ */
+export async function setRequireInviteCode(
+	db: D1Database,
+	required: boolean,
+): Promise<void> {
+	await upsertSetting(db, REQUIRE_INVITE_CODE_KEY, required ? "true" : "false");
+}

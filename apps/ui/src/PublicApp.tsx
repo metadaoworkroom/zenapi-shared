@@ -15,9 +15,10 @@ type PublicAppProps = {
 	siteMode: "personal" | "service" | "shared";
 	linuxdoEnabled: boolean;
 	registrationMode: RegistrationMode;
+	requireInviteCode: boolean;
 };
 
-export const PublicApp = ({ onUserLogin, onNavigate, siteMode, linuxdoEnabled, registrationMode }: PublicAppProps) => {
+export const PublicApp = ({ onUserLogin, onNavigate, siteMode, linuxdoEnabled, registrationMode, requireInviteCode }: PublicAppProps) => {
 	const [page, setPage] = useState<"login" | "register">(() => {
 		const normalized = normalizePath(window.location.pathname);
 		if (normalized === "/register") return "register";
@@ -60,6 +61,7 @@ export const PublicApp = ({ onUserLogin, onNavigate, siteMode, linuxdoEnabled, r
 				linuxdo_account_restricted: "授权失败：Linux DO 账号受限",
 				user_disabled: "授权失败：用户已被禁用",
 				registration_disabled: "授权失败：注册已关闭",
+				invalid_invite_code: "授权失败：邀请码无效或已用完",
 			};
 			setNotice(errorMessages[linuxdoError] ?? `授权失败：${linuxdoError}`);
 		}
@@ -89,14 +91,14 @@ export const PublicApp = ({ onUserLogin, onNavigate, siteMode, linuxdoEnabled, r
 	);
 
 	const handleRegister = useCallback(
-		async (email: string, name: string, password: string) => {
+		async (email: string, name: string, password: string, inviteCode?: string) => {
 			try {
 				const api = apiFetch();
 				const result = await api<{ token: string }>(
 					"/api/u/auth/register",
 					{
 						method: "POST",
-						body: JSON.stringify({ email, name, password }),
+						body: JSON.stringify({ email, name, password, invite_code: inviteCode }),
 					},
 				);
 				onUserLogin(result.token);
@@ -145,6 +147,7 @@ export const PublicApp = ({ onUserLogin, onNavigate, siteMode, linuxdoEnabled, r
 					onNavigate={onNavigate}
 					linuxdoEnabled={linuxdoEnabled}
 					registrationMode={registrationMode}
+					requireInviteCode={requireInviteCode}
 				/>
 			</div>
 		);
@@ -189,6 +192,7 @@ export const PublicApp = ({ onUserLogin, onNavigate, siteMode, linuxdoEnabled, r
 				onNavigate={onNavigate}
 				linuxdoEnabled={linuxdoEnabled}
 				registrationMode={registrationMode}
+				requireInviteCode={requireInviteCode}
 			/>
 		</div>
 	);

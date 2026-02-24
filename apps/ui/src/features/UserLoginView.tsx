@@ -8,6 +8,7 @@ type UserLoginViewProps = {
 	onNavigate: (path: string) => void;
 	linuxdoEnabled: boolean;
 	registrationMode: RegistrationMode;
+	requireInviteCode: boolean;
 };
 
 export const UserLoginView = ({
@@ -17,9 +18,11 @@ export const UserLoginView = ({
 	onNavigate,
 	linuxdoEnabled,
 	registrationMode,
+	requireInviteCode,
 }: UserLoginViewProps) => {
 	const [account, setAccount] = useState("");
 	const [password, setPassword] = useState("");
+	const [inviteCode, setInviteCode] = useState("");
 
 	const handleSubmit = (e: Event) => {
 		e.preventDefault();
@@ -91,15 +94,43 @@ export const UserLoginView = ({
 							<span class="bg-white px-2 text-stone-400">或</span>
 						</div>
 					</div>
-					<a
-						href="/api/u/auth/linuxdo"
+					{requireInviteCode && (
+						<div class="mb-3">
+							<label
+								class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500"
+								for="login-invite"
+							>
+								邀请码（新用户注册需要）
+							</label>
+							<input
+								class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+								id="login-invite"
+								type="text"
+								placeholder="已有账户可留空"
+								value={inviteCode}
+								onInput={(e) =>
+									setInviteCode(
+										(e.currentTarget as HTMLInputElement)?.value ?? "",
+									)
+								}
+							/>
+						</div>
+					)}
+					<button
+						type="button"
 						class="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md"
+						onClick={() => {
+							const url = requireInviteCode && inviteCode.trim()
+								? `/api/u/auth/linuxdo?invite_code=${encodeURIComponent(inviteCode.trim())}`
+								: "/api/u/auth/linuxdo";
+							window.location.href = url;
+						}}
 					>
 						<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 							<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" fill="currentColor"/>
 						</svg>
 						使用 Linux DO 登录
-					</a>
+					</button>
 				</div>
 			)}
 			<p class="mt-4 text-center text-sm text-stone-500">

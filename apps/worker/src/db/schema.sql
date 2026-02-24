@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS users (
   linuxdo_id TEXT,
   linuxdo_username TEXT,
   tip_url TEXT,
+  invite_code_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -124,3 +125,23 @@ CREATE TABLE IF NOT EXISTS channel_model_aliases (
 CREATE UNIQUE INDEX IF NOT EXISTS channel_model_aliases_ch_alias ON channel_model_aliases(channel_id, alias);
 CREATE INDEX IF NOT EXISTS channel_model_aliases_alias ON channel_model_aliases(alias);
 CREATE INDEX IF NOT EXISTS channel_model_aliases_ch_model ON channel_model_aliases(channel_id, model_id);
+
+CREATE TABLE IF NOT EXISTS user_checkins (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  checkin_date TEXT NOT NULL,
+  reward REAL NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS user_checkins_user_date ON user_checkins(user_id, checkin_date);
+
+CREATE TABLE IF NOT EXISTS invite_codes (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  max_uses INTEGER NOT NULL DEFAULT 1,
+  used_count INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_by TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS invite_codes_code ON invite_codes(code);

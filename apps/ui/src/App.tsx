@@ -30,6 +30,7 @@ const App = () => {
 	const [siteMode, setSiteMode] = useState<SiteMode | null>(null);
 	const [registrationMode, setRegistrationMode] = useState<RegistrationMode>("open");
 	const [linuxdoEnabled, setLinuxdoEnabled] = useState(false);
+	const [requireInviteCode, setRequireInviteCode] = useState(false);
 	const [notice, setNotice] = useState("");
 	const [path, setPath] = useState(() =>
 		normalizePath(window.location.pathname),
@@ -58,11 +59,12 @@ const App = () => {
 	// Fetch site mode on mount
 	useEffect(() => {
 		const api = createApiFetch(null, () => {});
-		api<{ site_mode: SiteMode; registration_mode?: RegistrationMode; linuxdo_enabled?: boolean }>("/api/public/site-info")
+		api<{ site_mode: SiteMode; registration_mode?: RegistrationMode; linuxdo_enabled?: boolean; require_invite_code?: boolean }>("/api/public/site-info")
 			.then((result) => {
 				setSiteMode(result.site_mode);
 				setRegistrationMode(result.registration_mode ?? "open");
 				setLinuxdoEnabled(result.linuxdo_enabled ?? false);
+				setRequireInviteCode(result.require_invite_code ?? false);
 			})
 			.catch(() => setSiteMode("personal"));
 	}, []);
@@ -194,7 +196,7 @@ const App = () => {
 			// No token — redirect to login
 			history.replaceState(null, "", "/login");
 			setPath("/login");
-			return <PublicApp onUserLogin={handleUserLogin} onNavigate={navigateTo} siteMode={siteMode} linuxdoEnabled={linuxdoEnabled} registrationMode={registrationMode} />;
+			return <PublicApp onUserLogin={handleUserLogin} onNavigate={navigateTo} siteMode={siteMode} linuxdoEnabled={linuxdoEnabled} registrationMode={registrationMode} requireInviteCode={requireInviteCode} />;
 		}
 		if (!userChecked) {
 			// Token exists but still verifying — show nothing to avoid flash
@@ -204,7 +206,7 @@ const App = () => {
 			// Token was invalid — redirect to login
 			history.replaceState(null, "", "/login");
 			setPath("/login");
-			return <PublicApp onUserLogin={handleUserLogin} onNavigate={navigateTo} siteMode={siteMode} linuxdoEnabled={linuxdoEnabled} registrationMode={registrationMode} />;
+			return <PublicApp onUserLogin={handleUserLogin} onNavigate={navigateTo} siteMode={siteMode} linuxdoEnabled={linuxdoEnabled} registrationMode={registrationMode} requireInviteCode={requireInviteCode} />;
 		}
 		return (
 			<div class="min-h-screen bg-linear-to-b from-white via-stone-50 to-stone-100 font-['IBM_Plex_Sans'] text-stone-900 antialiased">
@@ -229,7 +231,7 @@ const App = () => {
 		return null;
 	}
 
-	return <PublicApp onUserLogin={handleUserLogin} onNavigate={navigateTo} siteMode={siteMode} linuxdoEnabled={linuxdoEnabled} registrationMode={registrationMode} />;
+	return <PublicApp onUserLogin={handleUserLogin} onNavigate={navigateTo} siteMode={siteMode} linuxdoEnabled={linuxdoEnabled} registrationMode={registrationMode} requireInviteCode={requireInviteCode} />;
 };
 
 render(<App />, root);

@@ -52,8 +52,8 @@ const ContributionBoard = ({ contributions }: { contributions: ContributionEntry
 										key={`row-${idx}`}
 										class={`border-b border-stone-50 cursor-pointer transition-colors hover:bg-stone-50 ${isExpanded ? "bg-stone-50" : ""}`}
 										onClick={() => setExpandedIdx(isExpanded ? null : idx)}
-										{...(entry.linuxdo_id ? { "data-linuxdo-id": entry.linuxdo_id } : {})}
-										{...(entry.linuxdo_username ? { "data-linuxdo-username": entry.linuxdo_username } : {})}
+										data-linuxdo-id={entry.linuxdo_id ?? undefined}
+										data-linuxdo-username={entry.linuxdo_username ?? undefined}
 										data-contributor-name={entry.user_name}
 									>
 										<td class="py-2.5 pr-4 text-stone-400">{idx + 1}</td>
@@ -127,11 +127,31 @@ const ContributionBoard = ({ contributions }: { contributions: ContributionEntry
 export const UserDashboard = ({ data, user, token, updateToken, linuxdoEnabled, onUnbind, onUserRefresh }: UserDashboardProps) => {
 	const [tipUrl, setTipUrl] = useState(user.tip_url ?? "");
 	const [profileNotice, setProfileNotice] = useState("");
+	const [checkinLoading, setCheckinLoading] = useState(false);
 
 	const apiFetch = useMemo(
 		() => createApiFetch(token, () => updateToken(null)),
 		[token, updateToken],
 	);
+
+	const handleCheckin = useCallback(async () => {
+		setCheckinLoading(true);
+		try {
+			const result = await apiFetch<{ ok?: boolean; already_checked_in?: boolean; reward?: number }>("/api/u/checkin", {
+				method: "POST",
+			});
+			if (result.already_checked_in) {
+				setProfileNotice("今日已签到");
+			} else if (result.ok) {
+				setProfileNotice(`签到成功，获得 $${result.reward?.toFixed(2) ?? "0"}`);
+				onUserRefresh();
+			}
+		} catch (error) {
+			setProfileNotice((error as Error).message);
+		} finally {
+			setCheckinLoading(false);
+		}
+	}, [apiFetch, onUserRefresh]);
 
 	const handleSaveTipUrl = useCallback(async () => {
 		try {
@@ -156,6 +176,38 @@ export const UserDashboard = ({ data, user, token, updateToken, linuxdoEnabled, 
 
 	return (
 		<div class="space-y-5">
+			{/* Check-in card */}
+			<div class="rounded-2xl border border-stone-200 bg-white p-5 shadow-lg">
+				<div class="flex items-center justify-between">
+					<div>
+						<h3 class="font-['Space_Grotesk'] text-lg tracking-tight text-stone-900">
+							每日签到
+						</h3>
+						<p class="text-xs text-stone-500">
+							每日签到可获得 ${data.checkin_reward.toFixed(2)} 余额
+						</p>
+					</div>
+					{data.checked_in_today ? (
+						<button
+							type="button"
+							disabled
+							class="rounded-lg bg-stone-100 px-5 py-2.5 text-sm font-semibold text-stone-400 cursor-not-allowed"
+						>
+							已签到
+						</button>
+					) : (
+						<button
+							type="button"
+							disabled={checkinLoading}
+							class="rounded-lg bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60"
+							onClick={handleCheckin}
+						>
+							{checkinLoading ? "签到中..." : "签到"}
+						</button>
+					)}
+				</div>
+			</div>
+
 			{/* Stats cards */}
 			<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
 				<div class="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">

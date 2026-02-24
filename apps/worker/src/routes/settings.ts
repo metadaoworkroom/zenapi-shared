@@ -1,13 +1,17 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import {
+	getCheckinReward,
 	getRegistrationMode,
+	getRequireInviteCode,
 	getRetentionDays,
 	getSessionTtlHours,
 	getSiteMode,
 	isAdminPasswordSet,
 	setAdminPasswordHash,
+	setCheckinReward,
 	setRegistrationMode,
+	setRequireInviteCode,
 	setRetentionDays,
 	setSessionTtlHours,
 	setSiteMode,
@@ -28,12 +32,16 @@ settings.get("/", async (c) => {
 	const adminPasswordSet = await isAdminPasswordSet(c.env.DB);
 	const siteMode = await getSiteMode(c.env.DB);
 	const registrationMode = await getRegistrationMode(c.env.DB);
+	const checkinReward = await getCheckinReward(c.env.DB);
+	const requireInviteCode = await getRequireInviteCode(c.env.DB);
 	return c.json({
 		log_retention_days: retention,
 		session_ttl_hours: sessionTtlHours,
 		admin_password_set: adminPasswordSet,
 		site_mode: siteMode,
 		registration_mode: registrationMode,
+		checkin_reward: checkinReward,
+		require_invite_code: requireInviteCode,
 	});
 });
 
@@ -107,6 +115,26 @@ settings.put("/", async (c) => {
 			);
 		}
 		await setRegistrationMode(c.env.DB, body.registration_mode);
+		touched = true;
+	}
+
+	if (body.checkin_reward !== undefined) {
+		const reward = Number(body.checkin_reward);
+		if (Number.isNaN(reward) || reward <= 0) {
+			return jsonError(
+				c,
+				400,
+				"invalid_checkin_reward",
+				"invalid_checkin_reward",
+			);
+		}
+		await setCheckinReward(c.env.DB, reward);
+		touched = true;
+	}
+
+	if (body.require_invite_code !== undefined) {
+		const value = body.require_invite_code === true || body.require_invite_code === "true";
+		await setRequireInviteCode(c.env.DB, value);
 		touched = true;
 	}
 

@@ -5,7 +5,7 @@ import { userAuth } from "../middleware/userAuth";
 import { extractModelPricings, extractModelIds, extractSharedModelPricings } from "../services/channel-models";
 import { listActiveChannels } from "../services/channel-repo";
 import { loadAllChannelAliasesGrouped } from "../services/model-aliases";
-import { getSiteMode } from "../services/settings";
+import { getCheckinReward, getSiteMode } from "../services/settings";
 import { generateToken, sha256Hex } from "../utils/crypto";
 import { jsonError } from "../utils/http";
 import { nowIso } from "../utils/time";
@@ -202,6 +202,48 @@ userApi.get("/usage", async (c) => {
 });
 
 /**
+ * Daily check-in to receive balance reward.
+ */
+userApi.post("/checkin", async (c) => {
+	const userId = c.get("userId") as string;
+	const today = new Date().toISOString().slice(0, 10);
+
+	const existing = await c.env.DB.prepare(
+		"SELECT id FROM user_checkins WHERE user_id = ? AND checkin_date = ?",
+	)
+		.bind(userId, today)
+		.first();
+
+	if (existing) {
+		return c.json({ already_checked_in: true });
+	}
+
+	const reward = await getCheckinReward(c.env.DB);
+	const id = crypto.randomUUID();
+	const now = nowIso();
+
+	await c.env.DB.prepare(
+		"INSERT INTO user_checkins (id, user_id, checkin_date, reward, created_at) VALUES (?, ?, ?, ?, ?)",
+	)
+		.bind(id, userId, today, reward, now)
+		.run();
+
+	await c.env.DB.prepare(
+		"UPDATE users SET balance = balance + ?, updated_at = ? WHERE id = ?",
+	)
+		.bind(reward, now, userId)
+		.run();
+
+	const updated = await c.env.DB.prepare(
+		"SELECT balance FROM users WHERE id = ?",
+	)
+		.bind(userId)
+		.first<{ balance: number }>();
+
+	return c.json({ ok: true, reward, new_balance: updated?.balance ?? 0 });
+});
+
+/**
  * Returns dashboard data for the current user.
  */
 userApi.get("/dashboard", async (c) => {
@@ -236,6 +278,15 @@ userApi.get("/dashboard", async (c) => {
 		.all();
 
 	const siteMode = await getSiteMode(c.env.DB);
+	const checkinReward = await getCheckinReward(c.env.DB);
+	const todayStr = new Date().toISOString().slice(0, 10);
+	const checkinRow = await c.env.DB.prepare(
+		"SELECT id FROM user_checkins WHERE user_id = ? AND checkin_date = ?",
+	)
+		.bind(userId, todayStr)
+		.first();
+	const checkedInToday = Boolean(checkinRow);
+
 	let contributions: Array<{
 		user_name: string;
 		linuxdo_id: string | null;
@@ -314,6 +365,8 @@ userApi.get("/dashboard", async (c) => {
 		total_cost: summary?.total_cost ?? 0,
 		recent_usage: recentUsage.results ?? [],
 		contributions,
+		checked_in_today: checkedInToday,
+		checkin_reward: checkinReward,
 	});
 });
 

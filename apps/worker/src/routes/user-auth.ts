@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import type { UserRecord } from "../middleware/userAuth";
 import { userAuth } from "../middleware/userAuth";
-import { getRegistrationMode, getSiteMode } from "../services/settings";
+import { getRegistrationMode, getRequireInviteCode, getSiteMode } from "../services/settings";
 import { generateToken, sha256Hex } from "../utils/crypto";
 import { jsonError } from "../utils/http";
 import { addHours, nowIso } from "../utils/time";
@@ -53,16 +53,44 @@ userAuthRoutes.post("/register", async (c) => {
 		return jsonError(c, 409, "email_or_name_exists", "email_or_name_exists");
 	}
 
+	// Invite code validation
+	const requireInviteCode = await getRequireInviteCode(c.env.DB);
+	let inviteCodeId: string | null = null;
+	if (requireInviteCode) {
+		const inviteCode = String(body.invite_code ?? "").trim();
+		if (!inviteCode) {
+			return jsonError(c, 400, "invalid_invite_code", "invalid_invite_code");
+		}
+		const codeRecord = await c.env.DB.prepare(
+			"SELECT id, used_count, max_uses FROM invite_codes WHERE code = ? AND status = 'active' AND used_count < max_uses",
+		)
+			.bind(inviteCode)
+			.first<{ id: string; used_count: number; max_uses: number }>();
+		if (!codeRecord) {
+			return jsonError(c, 400, "invalid_invite_code", "invalid_invite_code");
+		}
+		inviteCodeId = codeRecord.id;
+	}
+
 	const id = crypto.randomUUID();
 	const passwordHash = await sha256Hex(password);
 	const now = nowIso();
 	const defaultBalance = siteMode === "shared" ? 100 : 0;
 
 	await c.env.DB.prepare(
-		"INSERT INTO users (id, email, name, password_hash, role, balance, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO users (id, email, name, password_hash, role, balance, status, invite_code_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 	)
-		.bind(id, email, name, passwordHash, "user", defaultBalance, "active", now, now)
+		.bind(id, email, name, passwordHash, "user", defaultBalance, "active", inviteCodeId, now, now)
 		.run();
+
+	// Consume invite code
+	if (inviteCodeId) {
+		await c.env.DB.prepare(
+			"UPDATE invite_codes SET used_count = used_count + 1 WHERE id = ?",
+		)
+			.bind(inviteCodeId)
+			.run();
+	}
 
 	// Auto-login after registration
 	const rawToken = generateToken("u_");
@@ -206,6 +234,12 @@ userAuthRoutes.get("/linuxdo", async (c) => {
 	const headers = new Headers();
 	headers.set("Location", `${LINUXDO_AUTH_URL}?${params.toString()}`);
 	headers.set("Set-Cookie", `linuxdo_state=${stateHash}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600`);
+
+	// Store invite code in cookie if provided
+	const inviteCode = c.req.query("invite_code");
+	if (inviteCode) {
+		headers.append("Set-Cookie", `linuxdo_invite_code=${encodeURIComponent(inviteCode)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600`);
+	}
 
 	return new Response(null, { status: 302, headers });
 });
@@ -439,6 +473,26 @@ userAuthRoutes.get("/linuxdo/callback", async (c) => {
 			return redirectWithError(c, "registration_disabled");
 		}
 
+		// Invite code validation for new users
+		const requireInviteCode = await getRequireInviteCode(c.env.DB);
+		let inviteCodeId: string | null = null;
+		if (requireInviteCode) {
+			const inviteCodeCookie = parseCookie(cookieHeader, "linuxdo_invite_code");
+			const inviteCode = inviteCodeCookie ? decodeURIComponent(inviteCodeCookie) : "";
+			if (!inviteCode) {
+				return redirectWithError(c, "invalid_invite_code");
+			}
+			const codeRecord = await c.env.DB.prepare(
+				"SELECT id, used_count, max_uses FROM invite_codes WHERE code = ? AND status = 'active' AND used_count < max_uses",
+			)
+				.bind(inviteCode)
+				.first<{ id: string; used_count: number; max_uses: number }>();
+			if (!codeRecord) {
+				return redirectWithError(c, "invalid_invite_code");
+			}
+			inviteCodeId = codeRecord.id;
+		}
+
 		const id = crypto.randomUUID();
 		const email = `linuxdo_${linuxdoId}@linuxdo.connect`;
 		const displayName = linuxdoUser.name || linuxdoUser.username;
@@ -458,10 +512,19 @@ userAuthRoutes.get("/linuxdo/callback", async (c) => {
 		}
 
 		await c.env.DB.prepare(
-			"INSERT INTO users (id, email, name, password_hash, role, balance, status, linuxdo_id, linuxdo_username, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO users (id, email, name, password_hash, role, balance, status, linuxdo_id, linuxdo_username, invite_code_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
-			.bind(id, email, finalName, passwordHash, "user", defaultBalance, "active", linuxdoId, linuxdoUser.username, now, now)
+			.bind(id, email, finalName, passwordHash, "user", defaultBalance, "active", linuxdoId, linuxdoUser.username, inviteCodeId, now, now)
 			.run();
+
+		// Consume invite code
+		if (inviteCodeId) {
+			await c.env.DB.prepare(
+				"UPDATE invite_codes SET used_count = used_count + 1 WHERE id = ?",
+			)
+				.bind(inviteCodeId)
+				.run();
+		}
 
 		user = { id, email, name: finalName, role: "user", balance: defaultBalance, status: "active" };
 	}
@@ -478,11 +541,13 @@ userAuthRoutes.get("/linuxdo/callback", async (c) => {
 		.run();
 
 	// Redirect to frontend with token
-	const clearCookie = "linuxdo_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
+	const clearStateCookie = "linuxdo_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
+	const clearInviteCookie = "linuxdo_invite_code=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
 	const frontendUrl = `${origin}/login?linuxdo_token=${encodeURIComponent(rawToken)}`;
 	const headers = new Headers();
 	headers.set("Location", frontendUrl);
-	headers.set("Set-Cookie", clearCookie);
+	headers.append("Set-Cookie", clearStateCookie);
+	headers.append("Set-Cookie", clearInviteCookie);
 	return new Response(null, { status: 302, headers });
 });
 
