@@ -7,6 +7,7 @@ type LdohViewProps = {
 	pendingMaintainers: LdohSiteMaintainer[];
 	pendingChannels: Array<{ id: string; name: string; base_url: string; status: string; user_name?: string; site_name?: string }>;
 	onSync: () => Promise<void>;
+	onBlockAll: () => Promise<void>;
 	onAddSite: (apiBaseUrl: string, maintainerUsername: string, name: string) => Promise<void>;
 	onApproveMaintainer: (id: string) => Promise<void>;
 	onRejectMaintainer: (id: string) => Promise<void>;
@@ -20,6 +21,7 @@ export const LdohView = ({
 	pendingMaintainers,
 	pendingChannels,
 	onSync,
+	onBlockAll,
 	onAddSite,
 	onApproveMaintainer,
 	onRejectMaintainer,
@@ -71,14 +73,23 @@ export const LdohView = ({
 					<h3 class="font-['Space_Grotesk'] text-lg tracking-tight text-stone-900">
 						公益站管理
 					</h3>
-					<button
-						type="button"
-						disabled={syncing}
-						class="rounded-lg bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition-all hover:shadow-lg disabled:opacity-60"
-						onClick={handleSync}
-					>
-						{syncing ? "同步中..." : "同步站点"}
-					</button>
+					<div class="flex gap-2">
+						<button
+							type="button"
+							class="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition-all hover:bg-red-100"
+							onClick={onBlockAll}
+						>
+							批量封禁
+						</button>
+						<button
+							type="button"
+							disabled={syncing}
+							class="rounded-lg bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition-all hover:shadow-lg disabled:opacity-60"
+							onClick={handleSync}
+						>
+							{syncing ? "同步中..." : "同步站点"}
+						</button>
+					</div>
 				</div>
 				{syncNotice && (
 					<div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">

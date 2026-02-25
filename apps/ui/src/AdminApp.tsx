@@ -563,6 +563,12 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 		setNotice("站点已添加");
 	}, [apiFetch, loadLdoh]);
 
+	const handleLdohBlockAll = useCallback(async () => {
+		const result = await apiFetch<{ blocked: number }>("/api/ldoh/block-all", { method: "POST" });
+		await loadLdoh();
+		setNotice(`已封禁 ${result.blocked} 个站点`);
+	}, [apiFetch, loadLdoh]);
+
 	const handleSettingsSubmit = useCallback(
 		async (event: Event) => {
 			event.preventDefault();
@@ -1018,6 +1024,7 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 					pendingMaintainers={ldohPendingMaintainers}
 					pendingChannels={ldohPendingChannels}
 					onSync={handleLdohSync}
+					onBlockAll={handleLdohBlockAll}
 					onAddSite={handleLdohAddSite}
 					onApproveMaintainer={handleLdohApproveMaintainer}
 					onRejectMaintainer={handleLdohRejectMaintainer}

@@ -59,6 +59,12 @@ ldoh.post("/sync", async (c) => {
 		const siteId = site.id || crypto.randomUUID();
 		const isVisible = site.isOnlyMaintainerVisible ? 0 : 1;
 
+		// Check if site already exists before upsert
+		const existingSite = await c.env.DB.prepare(
+			"SELECT id FROM ldoh_sites WHERE id = ?",
+		).bind(siteId).first();
+		const isNewSite = !existingSite;
+
 		await c.env.DB.prepare(
 			`INSERT INTO ldoh_sites (id, name, description, api_base_url, api_base_hostname, tags_json, is_visible, source, synced_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, 'ldoh', ?)
@@ -84,11 +90,8 @@ ldoh.post("/sync", async (c) => {
 			.run();
 		syncedSites++;
 
-		// Auto-block by default
-		const existingBlock = await c.env.DB.prepare(
-			"SELECT id FROM ldoh_blocked_urls WHERE site_id = ?",
-		).bind(siteId).first();
-		if (!existingBlock) {
+		// Auto-block new sites only
+		if (isNewSite) {
 			await c.env.DB.prepare(
 				"INSERT INTO ldoh_blocked_urls (id, site_id, hostname, blocked_by, created_at) VALUES (?, ?, ?, 'system', ?)",
 			).bind(crypto.randomUUID(), siteId, hostname, now).run();
@@ -174,13 +177,8 @@ ldoh.post("/sites", async (c) => {
 		)
 			.bind(siteId, siteName, apiBaseUrl, hostname, now)
 			.run();
-	}
 
-	// Auto-block by default
-	const existingBlock = await c.env.DB.prepare(
-		"SELECT id FROM ldoh_blocked_urls WHERE site_id = ?",
-	).bind(siteId).first();
-	if (!existingBlock) {
+		// Auto-block new sites only
 		await c.env.DB.prepare(
 			"INSERT INTO ldoh_blocked_urls (id, site_id, hostname, blocked_by, created_at) VALUES (?, ?, ?, 'system', ?)",
 		).bind(crypto.randomUUID(), siteId, hostname, now).run();
@@ -360,6 +358,27 @@ ldoh.post("/channels/:channelId/reject", async (c) => {
 		.bind(channelId)
 		.run();
 	return c.json({ ok: true });
+});
+
+/**
+ * Blocks all currently unblocked sites.
+ */
+ldoh.post("/block-all", async (c) => {
+	const now = nowIso();
+	const sites = await c.env.DB.prepare(
+		`SELECT s.id, s.api_base_hostname FROM ldoh_sites s
+		 WHERE NOT EXISTS (SELECT 1 FROM ldoh_blocked_urls b WHERE b.site_id = s.id)`,
+	).all();
+
+	let blocked = 0;
+	for (const site of sites.results ?? []) {
+		await c.env.DB.prepare(
+			"INSERT INTO ldoh_blocked_urls (id, site_id, hostname, blocked_by, created_at) VALUES (?, ?, ?, 'admin', ?)",
+		).bind(crypto.randomUUID(), site.id, site.api_base_hostname, now).run();
+		blocked++;
+	}
+
+	return c.json({ ok: true, blocked });
 });
 
 export default ldoh;
