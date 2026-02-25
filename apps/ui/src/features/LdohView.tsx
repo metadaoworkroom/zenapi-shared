@@ -5,7 +5,7 @@ type LdohViewProps = {
 	sites: LdohSite[];
 	violations: LdohViolation[];
 	pendingMaintainers: LdohSiteMaintainer[];
-	pendingChannels: Array<{ id: string; name: string; base_url: string; status: string; user_name?: string; site_name?: string }>;
+	pendingChannels: Array<{ id: string; name: string; base_url: string; status: string; user_name?: string; site_name?: string; contribution_note?: string | null }>;
 	onSync: () => Promise<void>;
 	onBlockAll: () => Promise<void>;
 	onAddSite: (apiBaseUrl: string, maintainerUsername: string, name: string) => Promise<void>;
@@ -257,6 +257,7 @@ export const LdohView = ({
 								<th class="pb-2 pr-4 font-medium">名称</th>
 								<th class="pb-2 pr-4 font-medium">URL</th>
 								<th class="pb-2 pr-4 font-medium">提交者</th>
+								<th class="pb-2 pr-4 font-medium">说明</th>
 								<th class="pb-2 font-medium">操作</th>
 							</tr>
 						</thead>
@@ -266,6 +267,7 @@ export const LdohView = ({
 									<td class="py-2 pr-4 font-medium text-stone-700">{ch.name}</td>
 									<td class="py-2 pr-4 text-xs text-stone-500 max-w-[200px] truncate">{ch.base_url}</td>
 									<td class="py-2 pr-4 text-stone-600">{ch.user_name ?? "-"}</td>
+									<td class="py-2 pr-4 text-xs text-stone-500 max-w-[200px]">{ch.contribution_note || "-"}</td>
 									<td class="py-2">
 										<div class="flex gap-2">
 											<button

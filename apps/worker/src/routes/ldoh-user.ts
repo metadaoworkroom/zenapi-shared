@@ -161,7 +161,7 @@ ldohUser.get("/sites/:id/channels", async (c) => {
 	}
 
 	const channels = await c.env.DB.prepare(
-		`SELECT c.id, c.name, c.base_url, c.status, c.contributed_by, c.created_at, u.name as user_name, u.linuxdo_username
+		`SELECT c.id, c.name, c.base_url, c.status, c.contributed_by, c.contribution_note, c.created_at, u.name as user_name, u.linuxdo_username
 		 FROM channels c
 		 LEFT JOIN users u ON c.contributed_by = u.id
 		 ORDER BY c.created_at DESC`,

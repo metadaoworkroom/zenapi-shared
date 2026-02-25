@@ -18,6 +18,7 @@ type MaintainerChannel = {
 	status: string;
 	user_name?: string;
 	linuxdo_username?: string;
+	contribution_note?: string | null;
 };
 
 type ChannelItem = {
@@ -487,28 +488,33 @@ export const UserChannelsView = ({
 										<p class="mb-1 text-xs font-medium text-amber-600">待审批渠道 ({pendingChs.length})</p>
 										<div class="space-y-1">
 											{pendingChs.map((ch) => (
-												<div key={ch.id} class="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
-													<div>
-														<span class="text-sm text-stone-700">{ch.name}</span>
-														<span class="ml-2 text-xs text-stone-400">{ch.user_name ?? ""}</span>
-													</div>
-													<div class="flex gap-2">
-														<button
-															type="button"
-															class="text-xs text-emerald-600 hover:text-emerald-700"
-															onClick={() => handleMaintainerApproveChannel(ch.id)}
-														>
-															批准
-														</button>
-														<button
-															type="button"
-															class="text-xs text-red-500 hover:text-red-600"
-															onClick={() => handleMaintainerRejectChannel(ch.id)}
-														>
-															拒绝
+												<div key={ch.id} class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+													<div class="flex items-center justify-between">
+														<div>
+															<span class="text-sm text-stone-700">{ch.name}</span>
+															<span class="ml-2 text-xs text-stone-400">{ch.user_name ?? ""}</span>
+														</div>
+														<div class="flex gap-2">
+															<button
+																type="button"
+																class="text-xs text-emerald-600 hover:text-emerald-700"
+																onClick={() => handleMaintainerApproveChannel(ch.id)}
+															>
+																批准
+															</button>
+															<button
+																type="button"
+																class="text-xs text-red-500 hover:text-red-600"
+																onClick={() => handleMaintainerRejectChannel(ch.id)}
+															>
+																拒绝
 														</button>
 													</div>
 												</div>
+												{ch.contribution_note && (
+													<p class="mt-1 text-xs text-stone-500">说明：{ch.contribution_note}</p>
+												)}
+											</div>
 											))}
 										</div>
 									</div>

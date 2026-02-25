@@ -12,6 +12,7 @@ export type Channel = {
 	custom_headers_json?: string | null;
 	contributed_by?: string | null;
 	charge_enabled?: number | null;
+	contribution_note?: string | null;
 };
 
 export type Token = {

@@ -110,7 +110,7 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 	const [ldohSites, setLdohSites] = useState<LdohSite[]>([]);
 	const [ldohViolations, setLdohViolations] = useState<LdohViolation[]>([]);
 	const [ldohPendingMaintainers, setLdohPendingMaintainers] = useState<LdohSiteMaintainer[]>([]);
-	const [ldohPendingChannels, setLdohPendingChannels] = useState<Array<{ id: string; name: string; base_url: string; status: string; user_name?: string; site_name?: string }>>([]);
+	const [ldohPendingChannels, setLdohPendingChannels] = useState<Array<{ id: string; name: string; base_url: string; status: string; user_name?: string; site_name?: string; contribution_note?: string | null }>>([]);
 
 	const apiFetch = useMemo(
 		() => createApiFetch(token, () => updateToken(null)),
@@ -208,9 +208,11 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 
 		// Fetch pending channels
 		const channelsResult = await apiFetch<{ channels: Channel[] }>("/api/channels");
+		const usersResult = await apiFetch<{ users: User[] }>("/api/users");
+		const userMap = new Map((usersResult.users ?? []).map((u) => [u.id, u.name]));
 		const pendingChs = (channelsResult.channels ?? [])
 			.filter((ch) => ch.status === "pending")
-			.map((ch) => ({ id: ch.id, name: ch.name, base_url: ch.base_url, status: ch.status }));
+			.map((ch) => ({ id: ch.id, name: ch.name, base_url: ch.base_url, status: ch.status, user_name: ch.contributed_by ? userMap.get(ch.contributed_by) ?? ch.contributed_by : undefined, contribution_note: ch.contribution_note }));
 		setLdohPendingChannels(pendingChs);
 	}, [apiFetch]);
 
