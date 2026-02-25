@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import type { UserRecord } from "../middleware/userAuth";
 import { userAuth } from "../middleware/userAuth";
+import { disableNonMaintainerChannels } from "../services/ldoh-blocking";
 import { jsonError } from "../utils/http";
 import { nowIso } from "../utils/time";
 import { extractHostname, hostnameMatches } from "../utils/url";
@@ -95,6 +96,7 @@ ldohUser.post("/claim-site", async (c) => {
 		await c.env.DB.prepare(
 			"INSERT INTO ldoh_blocked_urls (id, site_id, hostname, blocked_by, created_at) VALUES (?, ?, ?, 'system', ?)",
 		).bind(crypto.randomUUID(), siteId, hostname, now).run();
+		await disableNonMaintainerChannels(c.env.DB, siteId, hostname);
 	}
 
 	// Check if already a maintainer
@@ -222,6 +224,7 @@ ldohUser.post("/sites/:id/block", async (c) => {
 	)
 		.bind(id, siteId, site.api_base_hostname, userId, nowIso())
 		.run();
+	await disableNonMaintainerChannels(c.env.DB, siteId, site.api_base_hostname);
 
 	return c.json({ ok: true });
 });

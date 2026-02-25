@@ -3,6 +3,7 @@ import type { AppEnv } from "../env";
 import { getLdohCookie } from "../services/settings";
 import { jsonError } from "../utils/http";
 import { nowIso } from "../utils/time";
+import { disableNonMaintainerChannels } from "../services/ldoh-blocking";
 import { extractHostname } from "../utils/url";
 
 const ldoh = new Hono<AppEnv>();
@@ -95,6 +96,7 @@ ldoh.post("/sync", async (c) => {
 			await c.env.DB.prepare(
 				"INSERT INTO ldoh_blocked_urls (id, site_id, hostname, blocked_by, created_at) VALUES (?, ?, ?, 'system', ?)",
 			).bind(crypto.randomUUID(), siteId, hostname, now).run();
+			await disableNonMaintainerChannels(c.env.DB, siteId, hostname);
 		}
 
 		// Process all maintainers (it's an array)
@@ -182,6 +184,7 @@ ldoh.post("/sites", async (c) => {
 		await c.env.DB.prepare(
 			"INSERT INTO ldoh_blocked_urls (id, site_id, hostname, blocked_by, created_at) VALUES (?, ?, ?, 'system', ?)",
 		).bind(crypto.randomUUID(), siteId, hostname, now).run();
+		await disableNonMaintainerChannels(c.env.DB, siteId, hostname);
 	}
 
 	if (maintainerUsername) {
@@ -361,6 +364,86 @@ ldoh.post("/channels/:channelId/reject", async (c) => {
 });
 
 /**
+ * Updates a site's name, description, and/or API base URL.
+ */
+ldoh.patch("/sites/:id", async (c) => {
+	const id = c.req.param("id");
+	const body = await c.req.json().catch(() => null);
+	if (!body) {
+		return jsonError(c, 400, "invalid_body", "请提供更新数据");
+	}
+
+	const existing = await c.env.DB.prepare(
+		"SELECT * FROM ldoh_sites WHERE id = ?",
+	).bind(id).first();
+	if (!existing) {
+		return jsonError(c, 404, "site_not_found", "站点不存在");
+	}
+
+	const name = body.name != null ? String(body.name).trim() : null;
+	const description = body.description != null ? String(body.description).trim() : null;
+	const apiBaseUrl = body.apiBaseUrl != null ? String(body.apiBaseUrl).trim() : null;
+
+	let hostname: string | null = null;
+	if (apiBaseUrl) {
+		hostname = extractHostname(apiBaseUrl);
+		if (!hostname) {
+			return jsonError(c, 400, "invalid_url", "无效的 URL");
+		}
+	}
+
+	const sets: string[] = [];
+	const binds: unknown[] = [];
+
+	if (name) {
+		sets.push("name = ?");
+		binds.push(name);
+	}
+	if (description != null) {
+		sets.push("description = ?");
+		binds.push(description || null);
+	}
+	if (apiBaseUrl && hostname) {
+		sets.push("api_base_url = ?");
+		binds.push(apiBaseUrl);
+		sets.push("api_base_hostname = ?");
+		binds.push(hostname);
+	}
+
+	if (sets.length === 0) {
+		return c.json({ ok: true });
+	}
+
+	binds.push(id);
+	await c.env.DB.prepare(
+		`UPDATE ldoh_sites SET ${sets.join(", ")} WHERE id = ?`,
+	).bind(...binds).run();
+
+	// If hostname changed, sync ldoh_blocked_urls
+	if (hostname && hostname !== existing.api_base_hostname) {
+		await c.env.DB.prepare(
+			"UPDATE ldoh_blocked_urls SET hostname = ? WHERE site_id = ?",
+		).bind(hostname, id).run();
+	}
+
+	return c.json({ ok: true });
+});
+
+/**
+ * Deletes a site and all associated data.
+ */
+ldoh.delete("/sites/:id", async (c) => {
+	const id = c.req.param("id");
+
+	await c.env.DB.prepare("DELETE FROM ldoh_site_maintainers WHERE site_id = ?").bind(id).run();
+	await c.env.DB.prepare("DELETE FROM ldoh_blocked_urls WHERE site_id = ?").bind(id).run();
+	await c.env.DB.prepare("DELETE FROM ldoh_violations WHERE site_id = ?").bind(id).run();
+	await c.env.DB.prepare("DELETE FROM ldoh_sites WHERE id = ?").bind(id).run();
+
+	return c.json({ ok: true });
+});
+
+/**
  * Blocks all currently unblocked sites.
  */
 ldoh.post("/block-all", async (c) => {
@@ -375,6 +458,7 @@ ldoh.post("/block-all", async (c) => {
 		await c.env.DB.prepare(
 			"INSERT INTO ldoh_blocked_urls (id, site_id, hostname, blocked_by, created_at) VALUES (?, ?, ?, 'admin', ?)",
 		).bind(crypto.randomUUID(), site.id, site.api_base_hostname, now).run();
+		await disableNonMaintainerChannels(c.env.DB, String(site.id), String(site.api_base_hostname));
 		blocked++;
 	}
 

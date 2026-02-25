@@ -327,7 +327,13 @@ export const UserChannelsView = ({
 				closeModal();
 				await onRefresh();
 			} catch (error) {
-				setNotice((error as Error).message);
+				const msg = (error as Error).message;
+				if (msg === "hostname_blocked") {
+					closeModal();
+					setNotice("该 API 地址已被站点维护者封禁，无法提交。");
+				} else {
+					setNotice(msg);
+				}
 			}
 		},
 		[apiFetch, form, aliasState, pricingState, editingChannel, closeModal, onRefresh],

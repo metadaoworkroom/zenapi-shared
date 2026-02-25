@@ -9,6 +9,8 @@ type LdohViewProps = {
 	onSync: () => Promise<void>;
 	onBlockAll: () => Promise<void>;
 	onAddSite: (apiBaseUrl: string, maintainerUsername: string, name: string) => Promise<void>;
+	onEditSite: (id: string, data: { name?: string; description?: string; apiBaseUrl?: string }) => Promise<void>;
+	onDeleteSite: (id: string) => Promise<void>;
 	onApproveMaintainer: (id: string) => Promise<void>;
 	onRejectMaintainer: (id: string) => Promise<void>;
 	onApproveChannel: (id: string) => Promise<void>;
@@ -23,6 +25,8 @@ export const LdohView = ({
 	onSync,
 	onBlockAll,
 	onAddSite,
+	onEditSite,
+	onDeleteSite,
 	onApproveMaintainer,
 	onRejectMaintainer,
 	onApproveChannel,
@@ -34,6 +38,8 @@ export const LdohView = ({
 	const [addUsername, setAddUsername] = useState("");
 	const [addName, setAddName] = useState("");
 	const [addNotice, setAddNotice] = useState("");
+	const [editingSite, setEditingSite] = useState<LdohSite | null>(null);
+	const [editForm, setEditForm] = useState({ name: "", description: "", apiBaseUrl: "" });
 
 	const handleSync = useCallback(async () => {
 		setSyncing(true);
@@ -64,6 +70,31 @@ export const LdohView = ({
 			setAddNotice((error as Error).message);
 		}
 	}, [onAddSite, addUrl, addUsername, addName]);
+
+	const openEdit = useCallback((site: LdohSite) => {
+		setEditingSite(site);
+		setEditForm({
+			name: site.name,
+			description: site.description ?? "",
+			apiBaseUrl: site.api_base_url,
+		});
+	}, []);
+
+	const handleEditSubmit = useCallback(async (e: Event) => {
+		e.preventDefault();
+		if (!editingSite) return;
+		await onEditSite(editingSite.id, {
+			name: editForm.name.trim(),
+			description: editForm.description.trim(),
+			apiBaseUrl: editForm.apiBaseUrl.trim(),
+		});
+		setEditingSite(null);
+	}, [editingSite, editForm, onEditSite]);
+
+	const handleDelete = useCallback(async (id: string) => {
+		if (!window.confirm("确定要删除该站点吗？关联的维护者、封禁和违规记录将一并删除。")) return;
+		await onDeleteSite(id);
+	}, [onDeleteSite]);
 
 	return (
 		<div class="space-y-5">
@@ -259,7 +290,8 @@ export const LdohView = ({
 									<th class="pb-2 pr-4 font-medium">维护者</th>
 									<th class="pb-2 pr-4 font-medium">封禁</th>
 									<th class="pb-2 pr-4 font-medium">待审</th>
-									<th class="pb-2 font-medium">违规</th>
+									<th class="pb-2 pr-4 font-medium">违规</th>
+									<th class="pb-2 font-medium">操作</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -303,6 +335,24 @@ export const LdohView = ({
 										<td class="py-2.5 font-['Space_Grotesk'] text-stone-600">
 											{site.violation_count ?? 0}
 										</td>
+										<td class="py-2.5">
+											<div class="flex gap-2 whitespace-nowrap">
+												<button
+													type="button"
+													class="text-xs text-amber-600 hover:text-amber-700"
+													onClick={() => openEdit(site)}
+												>
+													编辑
+												</button>
+												<button
+													type="button"
+													class="text-xs text-red-500 hover:text-red-600"
+													onClick={() => handleDelete(site.id)}
+												>
+													删除
+												</button>
+											</div>
+										</td>
 									</tr>
 								))}
 							</tbody>
@@ -342,6 +392,89 @@ export const LdohView = ({
 					</table>
 				</div>
 			</div>
+			)}
+
+			{/* Edit site modal */}
+			{editingSite && (
+				<div class="fixed inset-0 z-50 flex items-center justify-center">
+					<button
+						type="button"
+						class="absolute inset-0 bg-stone-900/40"
+						onClick={() => setEditingSite(null)}
+					/>
+					<div class="relative z-10 w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-xl">
+						<h3 class="mb-4 font-['Space_Grotesk'] text-lg tracking-tight text-stone-900">
+							编辑站点: {editingSite.name}
+						</h3>
+						<form class="grid gap-4" onSubmit={handleEditSubmit}>
+							<div>
+								<label class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500">
+									名称
+								</label>
+								<input
+									class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+									type="text"
+									required
+									value={editForm.name}
+									onInput={(e) =>
+										setEditForm((p) => ({
+											...p,
+											name: (e.currentTarget as HTMLInputElement)?.value ?? "",
+										}))
+									}
+								/>
+							</div>
+							<div>
+								<label class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500">
+									描述
+								</label>
+								<textarea
+									class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+									rows={3}
+									value={editForm.description}
+									onInput={(e) =>
+										setEditForm((p) => ({
+											...p,
+											description: (e.currentTarget as HTMLTextAreaElement)?.value ?? "",
+										}))
+									}
+								/>
+							</div>
+							<div>
+								<label class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500">
+									API Base URL
+								</label>
+								<input
+									class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+									type="text"
+									required
+									value={editForm.apiBaseUrl}
+									onInput={(e) =>
+										setEditForm((p) => ({
+											...p,
+											apiBaseUrl: (e.currentTarget as HTMLInputElement)?.value ?? "",
+										}))
+									}
+								/>
+							</div>
+							<div class="flex justify-end gap-3">
+								<button
+									type="button"
+									class="h-10 rounded-lg border border-stone-200 px-4 text-sm text-stone-500 hover:text-stone-900"
+									onClick={() => setEditingSite(null)}
+								>
+									取消
+								</button>
+								<button
+									type="submit"
+									class="h-10 rounded-lg bg-stone-900 px-4 text-sm font-semibold text-white transition-all hover:shadow-lg"
+								>
+									保存
+								</button>
+							</div>
+						</form>
+					</div>
+				</div>
 			)}
 		</div>
 	);
