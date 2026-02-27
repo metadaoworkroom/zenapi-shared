@@ -626,6 +626,7 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 				ldc_epay_gateway: settingsForm.ldc_epay_gateway,
 				ldc_exchange_rate: Number(settingsForm.ldc_exchange_rate),
 				ldoh_cookie: settingsForm.ldoh_cookie,
+				announcement: settingsForm.announcement,
 			};
 			const password = settingsForm.admin_password.trim();
 			if (password) {

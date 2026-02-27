@@ -1,4 +1,4 @@
-import { useState } from "hono/jsx/dom";
+import { useEffect, useRef, useState } from "hono/jsx/dom";
 import type { InviteCode, RegistrationMode, SettingsForm, SiteMode } from "../core/types";
 
 type SettingsViewProps = {
@@ -45,6 +45,13 @@ export const SettingsView = ({
 	const [genCount, setGenCount] = useState("10");
 	const [genMaxUses, setGenMaxUses] = useState("1");
 	const [genPrefix, setGenPrefix] = useState("ZEN-");
+	const announcementRef = useRef<HTMLTextAreaElement>(null);
+
+	useEffect(() => {
+		if (announcementRef.current && announcementRef.current.value !== settingsForm.announcement) {
+			announcementRef.current.value = settingsForm.announcement;
+		}
+	}, [settingsForm.announcement]);
 
 	return (
 	<div class="space-y-5">
@@ -528,12 +535,12 @@ export const SettingsView = ({
 					站点公告
 				</label>
 				<textarea
+					ref={announcementRef}
 					class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
 					id="announcement"
 					name="announcement"
 					rows={3}
 					placeholder="输入公告内容，所有用户进入站点时会看到此公告。留空则不显示。"
-					value={settingsForm.announcement}
 					onInput={(event) => {
 						const target = event.currentTarget as HTMLTextAreaElement | null;
 						onFormChange({
