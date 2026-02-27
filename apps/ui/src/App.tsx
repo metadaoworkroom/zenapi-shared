@@ -32,6 +32,8 @@ const App = () => {
 	const [linuxdoEnabled, setLinuxdoEnabled] = useState(false);
 	const [requireInviteCode, setRequireInviteCode] = useState(false);
 	const [notice, setNotice] = useState("");
+	const [announcement, setAnnouncement] = useState("");
+	const [showAnnouncement, setShowAnnouncement] = useState(false);
 	const [path, setPath] = useState(() =>
 		normalizePath(window.location.pathname),
 	);
@@ -59,12 +61,20 @@ const App = () => {
 	// Fetch site mode on mount
 	useEffect(() => {
 		const api = createApiFetch(null, () => {});
-		api<{ site_mode: SiteMode; registration_mode?: RegistrationMode; linuxdo_enabled?: boolean; require_invite_code?: boolean }>("/api/public/site-info")
+		api<{ site_mode: SiteMode; registration_mode?: RegistrationMode; linuxdo_enabled?: boolean; require_invite_code?: boolean; announcement?: string }>("/api/public/site-info")
 			.then((result) => {
 				setSiteMode(result.site_mode);
 				setRegistrationMode(result.registration_mode ?? "open");
 				setLinuxdoEnabled(result.linuxdo_enabled ?? false);
 				setRequireInviteCode(result.require_invite_code ?? false);
+				const announcementText = result.announcement ?? "";
+				setAnnouncement(announcementText);
+				if (announcementText) {
+					const dismissedKey = `announcement_dismissed_${btoa(encodeURIComponent(announcementText))}`;
+					if (!localStorage.getItem(dismissedKey)) {
+						setShowAnnouncement(true);
+					}
+				}
 			})
 			.catch(() => setSiteMode("personal"));
 	}, []);
@@ -123,6 +133,14 @@ const App = () => {
 			})
 			.catch(() => {});
 	}, [userToken, updateUserToken]);
+
+	const handleDismissAnnouncement = useCallback(() => {
+		if (announcement) {
+			const dismissedKey = `announcement_dismissed_${btoa(encodeURIComponent(announcement))}`;
+			localStorage.setItem(dismissedKey, "1");
+		}
+		setShowAnnouncement(false);
+	}, [announcement]);
 
 	const handleAdminLogin = useCallback(
 		async (event: Event) => {
@@ -219,6 +237,7 @@ const App = () => {
 					onUserRefresh={handleUserRefresh}
 					siteMode={siteMode}
 				/>
+				{showAnnouncement && announcement && <AnnouncementModal text={announcement} onClose={handleDismissAnnouncement} />}
 			</div>
 		);
 	}
@@ -231,7 +250,39 @@ const App = () => {
 		return null;
 	}
 
-	return <PublicApp onUserLogin={handleUserLogin} onNavigate={navigateTo} siteMode={siteMode} linuxdoEnabled={linuxdoEnabled} registrationMode={registrationMode} requireInviteCode={requireInviteCode} />;
+	return (
+		<>
+			<PublicApp onUserLogin={handleUserLogin} onNavigate={navigateTo} siteMode={siteMode} linuxdoEnabled={linuxdoEnabled} registrationMode={registrationMode} requireInviteCode={requireInviteCode} />
+			{showAnnouncement && announcement && <AnnouncementModal text={announcement} onClose={handleDismissAnnouncement} />}
+		</>
+	);
+};
+
+const AnnouncementModal = ({ text, onClose }: { text: string; onClose: () => void }) => {
+	return (
+		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+			<div class="mx-4 w-full max-w-lg rounded-2xl border border-stone-200 bg-white p-6 shadow-2xl">
+				<div class="mb-4 flex items-center gap-2">
+					<span class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+							<path fill-rule="evenodd" d="M18 3a1 1 0 00-1.447-.894L8.763 6H5a3 3 0 000 6h.28l1.771 5.316A1 1 0 008 18h1a1 1 0 001-1v-4.382l6.553 3.276A1 1 0 0018 15V3z" clip-rule="evenodd" />
+						</svg>
+					</span>
+					<h3 class="font-['Space_Grotesk'] text-lg font-semibold tracking-tight text-stone-900">站点公告</h3>
+				</div>
+				<div class="mb-5 whitespace-pre-wrap text-sm leading-relaxed text-stone-700">{text}</div>
+				<div class="flex justify-end">
+					<button
+						type="button"
+						class="rounded-lg bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
+						onClick={onClose}
+					>
+						我知道了
+					</button>
+				</div>
+			</div>
+		</div>
+	);
 };
 
 render(<App />, root);

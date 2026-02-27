@@ -464,3 +464,24 @@ export async function setLdohCookie(
 ): Promise<void> {
 	await upsertSetting(db, LDOH_COOKIE_KEY, cookie);
 }
+
+// Announcement
+const ANNOUNCEMENT_KEY = "announcement";
+
+/**
+ * Returns the current site announcement text (empty string if not set).
+ */
+export async function getAnnouncement(db: D1Database): Promise<string> {
+	const value = await readSetting(db, ANNOUNCEMENT_KEY);
+	return value ?? "";
+}
+
+/**
+ * Updates the site announcement. Pass empty string to clear.
+ */
+export async function setAnnouncement(
+	db: D1Database,
+	text: string,
+): Promise<void> {
+	await upsertSetting(db, ANNOUNCEMENT_KEY, text);
+}

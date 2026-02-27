@@ -11,7 +11,7 @@ import {
 } from "../services/format-converter";
 import { recordUsage } from "../services/usage";
 import { calculateCost, getModelPrice } from "../services/pricing";
-import { getSiteMode } from "../services/settings";
+import { getChannelFeeEnabled, getSiteMode, getWithdrawalMode } from "../services/settings";
 import { jsonError } from "../utils/http";
 import { safeJsonParse } from "../utils/json";
 import { parseApiKeys, shuffleArray } from "../utils/keys";
@@ -184,6 +184,12 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 							c.req.header("anthropic-version") ?? "2023-06-01",
 						);
 						headers.set("content-type", "application/json");
+
+						// Forward anthropic-beta header (needed for extended thinking, prompt caching, tool use, etc.)
+						const betaHeader = c.req.header("anthropic-beta");
+						if (betaHeader) {
+							headers.set("anthropic-beta", betaHeader);
+						}
 
 						response = await fetch(target, {
 							method: "POST",
@@ -372,11 +378,42 @@ anthropicProxy.post("/messages", tokenAuth, async (c) => {
 			// Deduct user balance
 			if (cost > 0 && tokenRecord.user_id) {
 				const now = new Date().toISOString();
-				await c.env.DB.prepare(
-					"UPDATE users SET balance = balance - ?, updated_at = ? WHERE id = ?",
-				)
-					.bind(cost, now, tokenRecord.user_id)
-					.run();
+				const withdrawalMode = await getWithdrawalMode(c.env.DB);
+				if (withdrawalMode === "strict") {
+					await c.env.DB.prepare(
+						"UPDATE users SET balance = balance - ?, withdrawable_balance = MAX(0, withdrawable_balance - ?), updated_at = ? WHERE id = ?",
+					)
+						.bind(cost, cost, now, tokenRecord.user_id)
+						.run();
+				} else {
+					await c.env.DB.prepare(
+						"UPDATE users SET balance = balance - ?, updated_at = ? WHERE id = ?",
+					)
+						.bind(cost, now, tokenRecord.user_id)
+						.run();
+				}
+			}
+			// Credit contributor balance
+			if (cost > 0 && channelForUsage.contributed_by && channelForUsage.charge_enabled === 1) {
+				const feeEnabled = await getChannelFeeEnabled(c.env.DB);
+				if (feeEnabled) {
+					const now = new Date().toISOString();
+					let withdrawableCredit = 0;
+					if (tokenRecord.user_id) {
+						const consumer = await c.env.DB.prepare(
+							"SELECT balance, withdrawable_balance FROM users WHERE id = ?",
+						).bind(tokenRecord.user_id).first<{ balance: number; withdrawable_balance: number }>();
+						if (consumer) {
+							const giftedPortion = Math.max(0, (consumer.balance + cost) - consumer.withdrawable_balance);
+							withdrawableCredit = Math.max(0, cost - giftedPortion);
+						}
+					}
+					await c.env.DB.prepare(
+						"UPDATE users SET balance = balance + ?, withdrawable_balance = withdrawable_balance + ?, updated_at = ? WHERE id = ?",
+					)
+						.bind(cost, withdrawableCredit, now, channelForUsage.contributed_by)
+						.run();
+				}
 			}
 		};
 

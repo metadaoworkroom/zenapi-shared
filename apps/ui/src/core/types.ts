@@ -154,6 +154,7 @@ export type Settings = {
 	ldc_epay_gateway: string;
 	ldc_exchange_rate: number;
 	ldoh_cookie: string;
+	announcement: string;
 };
 
 export type ModelChannel = {
@@ -233,6 +234,7 @@ export type SettingsForm = {
 	ldc_epay_gateway: string;
 	ldc_exchange_rate: string;
 	ldoh_cookie: string;
+	announcement: string;
 };
 
 // User types

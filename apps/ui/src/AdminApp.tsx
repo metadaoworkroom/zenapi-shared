@@ -176,6 +176,7 @@ export const AdminApp = ({ token, updateToken, onNavigate }: AdminAppProps) => {
 			ldc_epay_gateway: settings.ldc_epay_gateway ?? "https://credit.linux.do/epay",
 			ldc_exchange_rate: String(settings.ldc_exchange_rate ?? 0.1),
 			ldoh_cookie: settings.ldoh_cookie ?? "",
+			announcement: settings.announcement ?? "",
 		});
 		if (settings.require_invite_code) {
 			const result = await apiFetch<{ codes: InviteCode[] }>("/api/invite-codes");
