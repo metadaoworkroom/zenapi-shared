@@ -3,7 +3,7 @@ import type { AppEnv } from "../env";
 import { extractModelPricings, extractSharedModelPricings } from "../services/channel-models";
 import { listActiveChannels } from "../services/channel-repo";
 import { loadAllChannelAliasesGrouped } from "../services/model-aliases";
-import { getLdcPaymentEnabled, getRegistrationMode, getRequireInviteCode, getSiteMode } from "../services/settings";
+import { getAnnouncement, getLdcPaymentEnabled, getRegistrationMode, getRequireInviteCode, getSiteMode } from "../services/settings";
 
 const publicRoutes = new Hono<AppEnv>();
 
@@ -16,7 +16,8 @@ publicRoutes.get("/site-info", async (c) => {
 	const linuxdoEnabled = Boolean(c.env.LINUXDO_CLIENT_ID);
 	const requireInviteCode = await getRequireInviteCode(c.env.DB);
 	const ldcPaymentEnabled = await getLdcPaymentEnabled(c.env.DB);
-	return c.json({ site_mode: siteMode, registration_mode: registrationMode, linuxdo_enabled: linuxdoEnabled, require_invite_code: requireInviteCode, ldc_payment_enabled: ldcPaymentEnabled });
+	const announcement = await getAnnouncement(c.env.DB);
+	return c.json({ site_mode: siteMode, registration_mode: registrationMode, linuxdo_enabled: linuxdoEnabled, require_invite_code: requireInviteCode, ldc_payment_enabled: ldcPaymentEnabled, announcement });
 });
 
 /**

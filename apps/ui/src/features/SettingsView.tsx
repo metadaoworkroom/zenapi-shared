@@ -520,6 +520,31 @@ export const SettingsView = ({
 			)}
 			</>
 			)}
+			<div class="lg:col-span-2 border-t border-stone-100 pt-4 mt-1">
+				<label
+					class="mb-1.5 block text-xs uppercase tracking-widest text-stone-500"
+					for="announcement"
+				>
+					站点公告
+				</label>
+				<textarea
+					class="w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+					id="announcement"
+					name="announcement"
+					rows={3}
+					placeholder="输入公告内容，所有用户进入站点时会看到此公告。留空则不显示。"
+					value={settingsForm.announcement}
+					onInput={(event) => {
+						const target = event.currentTarget as HTMLTextAreaElement | null;
+						onFormChange({
+							announcement: target?.value ?? "",
+						});
+					}}
+				/>
+				<p class="mt-1 text-xs text-stone-500">
+					设置后，所有用户登录进入站点时会收到公告通知。清空公告内容即可关闭。
+				</p>
+			</div>
 			<div class="flex items-end lg:col-span-2">
 				<button
 					class="h-11 rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60"

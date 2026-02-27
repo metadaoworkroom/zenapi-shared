@@ -5,6 +5,7 @@ import {
 	getChannelFeeEnabled,
 	getChannelReviewEnabled,
 	getDefaultBalance,
+	getAnnouncement,
 	getLdohCookie,
 	getUserChannelSelectionEnabled,
 	getWithdrawalEnabled,
@@ -26,6 +27,7 @@ import {
 	setChannelFeeEnabled,
 	setChannelReviewEnabled,
 	setDefaultBalance,
+	setAnnouncement,
 	setLdohCookie,
 	setUserChannelSelectionEnabled,
 	setWithdrawalEnabled,
@@ -74,6 +76,7 @@ settings.get("/", async (c) => {
 	const withdrawalFeeRate = await getWithdrawalFeeRate(c.env.DB);
 	const withdrawalMode = await getWithdrawalMode(c.env.DB);
 	const ldohCookie = await getLdohCookie(c.env.DB);
+	const announcement = await getAnnouncement(c.env.DB);
 	return c.json({
 		log_retention_days: retention,
 		session_ttl_hours: sessionTtlHours,
@@ -95,6 +98,7 @@ settings.get("/", async (c) => {
 		withdrawal_fee_rate: withdrawalFeeRate,
 		withdrawal_mode: withdrawalMode,
 		ldoh_cookie: ldohCookie,
+		announcement: announcement,
 	});
 });
 
@@ -294,6 +298,11 @@ settings.put("/", async (c) => {
 
 	if (body.ldoh_cookie !== undefined) {
 		await setLdohCookie(c.env.DB, String(body.ldoh_cookie));
+		touched = true;
+	}
+
+	if (body.announcement !== undefined) {
+		await setAnnouncement(c.env.DB, String(body.announcement));
 		touched = true;
 	}
 
